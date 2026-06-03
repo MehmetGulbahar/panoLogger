@@ -1,0 +1,9 @@
+@media (max-width: 960px) {
+  .hide-on-mobile {
+    display: none !important;
+  }
+
+  .stack-on-mobile {
+    flex-direction: column !important;
+  }
+}

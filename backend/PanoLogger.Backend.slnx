@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PanoLogger.Api/PanoLogger.Api.csproj" />
+    <Project Path="src/PanoLogger.Application/PanoLogger.Application.csproj" />
+    <Project Path="src/PanoLogger.Domain/PanoLogger.Domain.csproj" />
+    <Project Path="src/PanoLogger.Infrastructure/PanoLogger.Infrastructure.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,41 @@
+{
+  "name": "pano-logger",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc -b",
+    "lint": "eslint . --ext .ts,.vue --max-warnings 0",
+    "format": "prettier . --write"
+  },
+  "dependencies": {
+    "@tanstack/vue-query": "^5.62.11",
+    "@vueuse/core": "^12.3.0",
+    "axios": "^1.8.4",
+    "pinia": "^3.0.1",
+    "primeflex": "^3.3.1",
+    "primeicons": "^7.0.0",
+    "primevue": "^3.53.1",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.22.0",
+    "@types/node": "^22.13.10",
+    "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.24.1",
+    "@typescript-eslint/parser": "^8.24.1",
+    "@vitejs/plugin-vue": "^5.2.3",
+    "eslint": "^9.22.0",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-vue": "^9.32.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.2",
+    "vue-tsc": "^2.2.8"
+  }
+}

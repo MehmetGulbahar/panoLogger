@@ -29,11 +29,19 @@ public static class AuthEndpoints
         {
             ValidateRegistration(request);
             var email = request.Email.Trim().ToLowerInvariant();
+            var companyCode = NormalizeCompanyCode(request.CompanyCode);
 
             if (await dbContext.Users.AnyAsync(user => user.Email == email, cancellationToken))
             {
                 throw new ValidationException("An account with this email already exists.");
             }
+
+            var company = await dbContext.Companies
+                .AsNoTracking()
+                .Where(item => item.CompanyCode == companyCode)
+                .Select(item => new { item.Id, item.CompanyCode })
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? throw new ValidationException("No company was found with this company code.");
 
             var viewerRoleId = await dbContext.Roles
                 .Where(role => role.Name == AppRoles.Viewer)
@@ -42,6 +50,7 @@ public static class AuthEndpoints
 
             var user = new User
             {
+                CompanyId = company.Id,
                 Email = email,
                 DisplayName = request.DisplayName.Trim(),
                 IsActive = true,
@@ -61,6 +70,7 @@ public static class AuthEndpoints
                 user.Id,
                 user.Email,
                 user.DisplayName,
+                user.CompanyId,
                 [AppRoles.Viewer],
                 jwtTokenService,
                 jwtOptions.Value,
@@ -93,12 +103,19 @@ public static class AuthEndpoints
                 where userRole.UserId == user.Id
                 select role.Name
             ).ToArrayAsync(cancellationToken);
+            roles = roles.Length == 0 ? [AppRoles.Viewer] : roles;
+
+            if (!roles.Contains(AppRoles.SuperAdmin, StringComparer.OrdinalIgnoreCase) && user.CompanyId is null)
+            {
+                throw new UnauthorizedAccessException("User account is not linked to a company.");
+            }
 
             return Results.Ok(CreateSessionResponse(
                 user.Id,
                 user.Email,
                 user.DisplayName,
-                roles.Length == 0 ? [AppRoles.Viewer] : roles,
+                user.CompanyId,
+                roles,
                 jwtTokenService,
                 jwtOptions.Value,
                 httpContext));
@@ -116,7 +133,7 @@ public static class AuthEndpoints
             var displayName = email.Split('@', 2)[0];
             var roles = NormalizeRoles(request.Roles);
 
-            return Results.Ok(CreateSessionResponse(userId, email, displayName, roles, jwtTokenService, jwtOptions.Value, httpContext));
+            return Results.Ok(CreateSessionResponse(userId, email, displayName, null, roles, jwtTokenService, jwtOptions.Value, httpContext));
         })
         .WithName("CreateDevelopmentToken");
 
@@ -136,7 +153,7 @@ public static class AuthEndpoints
             var user = await dbContext.Users
                 .AsNoTracking()
                 .Where(item => item.Id == userId && item.IsActive)
-                .Select(item => new { item.Id, item.Email, item.DisplayName })
+                .Select(item => new { item.Id, item.Email, item.DisplayName, item.CompanyId })
                 .FirstOrDefaultAsync(cancellationToken)
                 ?? throw new UnauthorizedAccessException("User account was not found or is inactive.");
 
@@ -145,6 +162,7 @@ public static class AuthEndpoints
                 id = user.Id,
                 email = user.Email,
                 displayName = user.DisplayName,
+                companyId = user.CompanyId,
                 roles = principal.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray(),
             });
         })
@@ -171,12 +189,13 @@ public static class AuthEndpoints
         Guid userId,
         string email,
         string displayName,
+        Guid? companyId,
         string[] roles,
         IJwtTokenService jwtTokenService,
         JwtOptions jwtOptions,
         HttpContext httpContext)
     {
-        var accessToken = jwtTokenService.CreateAccessToken(userId, email, roles);
+        var accessToken = jwtTokenService.CreateAccessToken(userId, email, companyId, roles);
         httpContext.Response.Cookies.Append(
             JwtAuthenticationExtensions.AccessTokenCookieName,
             accessToken,
@@ -189,6 +208,7 @@ public static class AuthEndpoints
                 id = userId,
                 email,
                 displayName,
+                companyId,
                 roles,
             },
         };
@@ -222,6 +242,19 @@ public static class AuthEndpoints
         {
             throw new ValidationException("Password must contain at least 8 characters.");
         }
+
+        _ = NormalizeCompanyCode(request.CompanyCode);
+    }
+
+    private static string NormalizeCompanyCode(string? companyCode)
+    {
+        var normalized = companyCode?.Trim().ToUpperInvariant() ?? "";
+        if (normalized.Length == 0)
+        {
+            throw new ValidationException("Company code is required.");
+        }
+
+        return normalized;
     }
 
     private static string[] NormalizeRoles(string[]? roles)
@@ -240,7 +273,7 @@ public static class AuthEndpoints
     }
 }
 
-public sealed record RegisterRequest(string DisplayName, string Email, string Password);
+public sealed record RegisterRequest(string DisplayName, string Email, string Password, string CompanyCode);
 
 public sealed record LoginRequest(string Email, string Password);
 

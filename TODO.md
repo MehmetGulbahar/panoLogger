@@ -148,6 +148,8 @@
 
 ## Recent Completed Work
 
+- [x] Replaced tax-number login with company-code account binding while keeping server-side company tenant isolation
+- [x] Added company tenant isolation with user-company linkage, scoped hierarchy/file/QR APIs, and tenant-aware auth responses
 - [x] Added website-matched success toast notifications for login and registration
 - [x] Replaced dashboard mock counters and fixed upload summary with authenticated API-backed hierarchy and file statistics
 - [x] Replaced the hardcoded facility district with a real database-backed district field in create, edit, list, and detail views

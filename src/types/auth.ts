@@ -17,6 +17,7 @@ export interface AuthUser {
   id: string;
   email: string;
   displayName: string;
+  companyId?: string | null;
   roles: UserRole[];
 }
 

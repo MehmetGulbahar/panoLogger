@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using PanoLogger.Api.Authorization;
@@ -17,12 +18,23 @@ public static class FileEndpoints
             .RequireAuthorization();
 
         group.MapGet("/summary", async (
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             CancellationToken cancellationToken) =>
         {
-            var totalPanels = await dbContext.Panels.CountAsync(cancellationToken);
-            var totalFiles = await dbContext.PanelFiles.CountAsync(cancellationToken);
+            var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
+            var panelsQuery =
+                from panel in dbContext.Panels.AsNoTracking()
+                join facility in dbContext.Facilities.AsNoTracking() on panel.FacilityId equals facility.Id
+                where tenant.IsSuperAdmin || facility.CompanyId == tenant.CompanyId
+                select panel.Id;
+
+            var totalPanels = await panelsQuery.CountAsync(cancellationToken);
+            var totalFiles = await dbContext.PanelFiles
+                .Where(file => panelsQuery.Contains(file.PanelId))
+                .CountAsync(cancellationToken);
             var panelsWithFiles = await dbContext.PanelFiles
+                .Where(file => panelsQuery.Contains(file.PanelId))
                 .Select(file => file.PanelId)
                 .Distinct()
                 .CountAsync(cancellationToken);
@@ -33,10 +45,11 @@ public static class FileEndpoints
 
         group.MapGet("/panels/{panelId:guid}", async (
             Guid panelId,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             CancellationToken cancellationToken) =>
         {
-            if (!await dbContext.Panels.AnyAsync(panel => panel.Id == panelId, cancellationToken))
+            if (!await CanAccessPanelAsync(principal, dbContext, panelId, cancellationToken))
             {
                 throw new NotFoundException($"Panel '{panelId}' was not found.");
             }
@@ -63,11 +76,12 @@ public static class FileEndpoints
             Guid panelId,
             [FromForm] IFormFile file,
             [FromForm] string? category,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             IFileStorageService fileStorageService,
             CancellationToken cancellationToken) =>
         {
-            if (!await dbContext.Panels.AnyAsync(panel => panel.Id == panelId, cancellationToken))
+            if (!await CanAccessPanelAsync(principal, dbContext, panelId, cancellationToken))
             {
                 throw new NotFoundException($"Panel '{panelId}' was not found.");
             }
@@ -119,18 +133,29 @@ public static class FileEndpoints
 
         group.MapGet("/{fileId:guid}/download", async (
             Guid fileId,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             IFileStorageService fileStorageService,
             CancellationToken cancellationToken) =>
         {
             var storagePath = await dbContext.PanelFiles
                 .AsNoTracking()
-                .Where(file => file.Id == fileId)
-                .Select(file => file.StoragePath)
+                .Join(dbContext.Panels.AsNoTracking(),
+                    file => file.PanelId,
+                    panel => panel.Id,
+                    (file, panel) => new { File = file, Panel = panel })
+                .Join(dbContext.Facilities.AsNoTracking(),
+                    item => item.Panel.FacilityId,
+                    facility => facility.Id,
+                    (item, facility) => new { item.File, facility.CompanyId })
+                .Where(item => item.File.Id == fileId)
+                .Select(item => new { item.File.StoragePath, item.CompanyId })
                 .FirstOrDefaultAsync(cancellationToken)
                 ?? throw new NotFoundException($"File '{fileId}' was not found.");
+            var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
+            tenant.EnsureCompany(storagePath.CompanyId);
 
-            var signedUrl = await fileStorageService.CreateSignedUrlAsync(storagePath, cancellationToken: cancellationToken);
+            var signedUrl = await fileStorageService.CreateSignedUrlAsync(storagePath.StoragePath, cancellationToken: cancellationToken);
             return Results.Ok(new { signedUrl = signedUrl.SignedUrl, expiresAtUtc = signedUrl.ExpiresAtUtc });
         })
         .WithName("GetPanelFileDownloadUrl");
@@ -143,6 +168,28 @@ public static class FileEndpoints
         return Enum.TryParse<PanelFileCategory>(category, true, out var parsedCategory)
             ? parsedCategory
             : PanelFileCategory.PanelDocument;
+    }
+
+    private static async Task<bool> CanAccessPanelAsync(
+        ClaimsPrincipal principal,
+        PanoLoggerDbContext dbContext,
+        Guid panelId,
+        CancellationToken cancellationToken)
+    {
+        var panelCompanyId = await (
+            from panel in dbContext.Panels.AsNoTracking()
+            join facility in dbContext.Facilities.AsNoTracking() on panel.FacilityId equals facility.Id
+            where panel.Id == panelId
+            select facility.CompanyId
+        ).FirstOrDefaultAsync(cancellationToken);
+
+        if (panelCompanyId == Guid.Empty)
+        {
+            return false;
+        }
+
+        var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
+        return tenant.CanAccessCompany(panelCompanyId);
     }
 }
 

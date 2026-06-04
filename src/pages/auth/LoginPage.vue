@@ -38,6 +38,14 @@
           </span>
         </label>
 
+        <label v-if="isRegisterMode" class="field">
+          <span>Şirket Kodu</span>
+          <span class="input-wrap">
+            <i class="pi pi-id-card" aria-hidden="true"></i>
+            <input v-model="companyCode" type="text" autocomplete="organization" required placeholder="Örn. AVM-001" />
+          </span>
+        </label>
+
         <label class="field">
           <span>Şifre</span>
           <span class="input-wrap">
@@ -101,6 +109,7 @@ const toast = useToast();
 const mode = ref<AuthMode>('login');
 const displayName = ref('');
 const email = ref('');
+const companyCode = ref('');
 const password = ref('');
 const confirmPassword = ref('');
 const rememberMe = ref(true);
@@ -137,6 +146,11 @@ async function onSubmit(): Promise<void> {
     return;
   }
 
+  if (isRegisterMode.value && !companyCode.value.trim()) {
+    errorMessage.value = 'Şirket kodu zorunludur.';
+    return;
+  }
+
   if (isRegisterMode.value && password.value.length < 8) {
     errorMessage.value = 'Şifre en az 8 karakter olmalıdır.';
     return;
@@ -151,7 +165,7 @@ async function onSubmit(): Promise<void> {
 
   try {
     if (isRegisterMode.value) {
-      await authStore.register(displayName.value.trim(), email.value.trim(), password.value);
+      await authStore.register(displayName.value.trim(), email.value.trim(), password.value, companyCode.value.trim());
       toast.add({
         severity: 'success',
         summary: 'Hesap oluşturuldu',

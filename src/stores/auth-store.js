@@ -32,11 +32,12 @@ export const useAuthStore = defineStore('auth', () => {
         setSession(data);
         await loadPermissions();
     }
-    async function register(displayName, email, password) {
+    async function register(displayName, email, password, companyCode) {
         const { data } = await apiClient.post(`${apiEndpoints.auth}/register`, {
             displayName,
             email,
             password,
+            companyCode,
         });
         setSession(data);
         await loadPermissions();

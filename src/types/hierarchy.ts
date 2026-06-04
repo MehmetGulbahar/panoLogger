@@ -20,6 +20,7 @@ export interface HierarchyCompany {
   id: string;
   name: string;
   projectName: string;
+  companyCode: string;
   taxNumber: string;
   address: string;
   contactEmail: string;
@@ -29,6 +30,7 @@ export interface HierarchyCompany {
 export interface CreateSystemRequest {
   projectName: string;
   companyName: string;
+  companyCode: string;
   taxNumber: string;
   companyAddress: string;
   contactEmail: string;
@@ -44,6 +46,7 @@ export interface CreateSystemRequest {
 export interface UpdateCompanyRequest {
   projectName: string;
   companyName: string;
+  companyCode: string;
   taxNumber: string;
   address: string;
   contactEmail: string;

@@ -13,11 +13,13 @@ public sealed class CompanyConfiguration : IEntityTypeConfiguration<Company>
 
         builder.Property(company => company.Name).HasMaxLength(160).IsRequired();
         builder.Property(company => company.ProjectName).HasMaxLength(160).IsRequired();
+        builder.Property(company => company.CompanyCode).HasMaxLength(40).IsRequired();
         builder.Property(company => company.TaxNumber).HasMaxLength(40).IsRequired();
         builder.Property(company => company.Address).HasMaxLength(500).IsRequired();
         builder.Property(company => company.ContactEmail).HasMaxLength(254).IsRequired();
         builder.Property(company => company.CreatedAtUtc).IsRequired();
 
+        builder.HasIndex(company => company.CompanyCode).IsUnique();
         builder.HasIndex(company => company.TaxNumber).IsUnique();
         builder.HasIndex(company => company.ContactEmail);
 
@@ -27,6 +29,7 @@ public sealed class CompanyConfiguration : IEntityTypeConfiguration<Company>
                 Id = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1"),
                 Name = "Enerji Teknolojileri A.S.",
                 ProjectName = "AVM Elektrik Yonetimi",
+                CompanyCode = "AVM-001",
                 TaxNumber = "1234567890",
                 Address = "Ataturk Mah. Caliskan Cd. No:12, Istanbul",
                 ContactEmail = "info@enerjitek.com",
@@ -38,6 +41,7 @@ public sealed class CompanyConfiguration : IEntityTypeConfiguration<Company>
                 Id = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2"),
                 Name = "Panel Yapi Ltd.",
                 ProjectName = "Isyeri Elektrik Yonetimi",
+                CompanyCode = "ISY-001",
                 TaxNumber = "9876543210",
                 Address = "Gazi Bulv. No:45, Izmir",
                 ContactEmail = "iletisim@panelyapi.com",
@@ -49,6 +53,7 @@ public sealed class CompanyConfiguration : IEntityTypeConfiguration<Company>
                 Id = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3"),
                 Name = "Elektrik Sistemleri Tic. Ltd.",
                 ProjectName = "Endustriyel Elektrik Yonetimi",
+                CompanyCode = "END-001",
                 TaxNumber = "5647382910",
                 Address = "Cumhuriyet Mh. Sanayi Sk. No:7, Ankara",
                 ContactEmail = "destek@elektriksistem.com",

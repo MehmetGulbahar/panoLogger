@@ -44,6 +44,7 @@ import { useRouter } from 'vue-router';
 const baseColumns = [
   { key: 'projectName', label: 'Proje' },
   { key: 'name', label: 'Şirket' },
+  { key: 'companyCode', label: 'Kod' },
   { key: 'contactEmail', label: 'İletişim' },
   { key: 'taxNumber', label: 'Vergi No' },
   { key: 'address', label: 'Adres' },

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PanoLogger.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using PanoLogger.Infrastructure.Persistence;
 namespace PanoLogger.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PanoLoggerDbContext))]
-    partial class PanoLoggerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260604131420_AddUserCompanyTenant")]
+    partial class AddUserCompanyTenant
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -92,12 +95,6 @@ namespace PanoLogger.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("address");
 
-                    b.Property<string>("CompanyCode")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)")
-                        .HasColumnName("company_code");
-
                     b.Property<string>("ContactEmail")
                         .IsRequired()
                         .HasMaxLength(254)
@@ -132,9 +129,6 @@ namespace PanoLogger.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CompanyCode")
-                        .IsUnique();
-
                     b.HasIndex("ContactEmail");
 
                     b.HasIndex("TaxNumber")
@@ -147,7 +141,6 @@ namespace PanoLogger.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1"),
                             Address = "Ataturk Mah. Caliskan Cd. No:12, Istanbul",
-                            CompanyCode = "AVM-001",
                             ContactEmail = "info@enerjitek.com",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             Name = "Enerji Teknolojileri A.S.",
@@ -158,7 +151,6 @@ namespace PanoLogger.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2"),
                             Address = "Gazi Bulv. No:45, Izmir",
-                            CompanyCode = "ISY-001",
                             ContactEmail = "iletisim@panelyapi.com",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             Name = "Panel Yapi Ltd.",
@@ -169,7 +161,6 @@ namespace PanoLogger.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3"),
                             Address = "Cumhuriyet Mh. Sanayi Sk. No:7, Ankara",
-                            CompanyCode = "END-001",
                             ContactEmail = "destek@elektriksistem.com",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             Name = "Elektrik Sistemleri Tic. Ltd.",

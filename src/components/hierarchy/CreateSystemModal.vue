@@ -19,6 +19,10 @@
             <input v-model="form.companyName" required placeholder="Örn. Enerji Teknolojileri A.Ş." />
           </label>
           <label class="field">
+            <span>Şirket Kodu</span>
+            <input v-model="form.companyCode" required placeholder="Örn. AVM-001" />
+          </label>
+          <label class="field">
             <span>Vergi No</span>
             <input v-model="form.taxNumber" required placeholder="10 haneli vergi numarası" />
           </label>
@@ -114,6 +118,7 @@ const errorMessage = ref('');
 const form = reactive<CreateSystemRequest>({
   projectName: '',
   companyName: '',
+  companyCode: '',
   taxNumber: '',
   companyAddress: '',
   contactEmail: '',

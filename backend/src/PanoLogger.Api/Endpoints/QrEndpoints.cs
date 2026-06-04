@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Net;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -39,6 +40,7 @@ public static class QrEndpoints
 
         group.MapGet("/panels/{panelId:guid}", async (
             Guid panelId,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             IQrCodeService qrCodeService,
             IOptions<QrCodeOptions> options,
@@ -47,9 +49,14 @@ public static class QrEndpoints
             var panel = await dbContext.Panels
                 .AsNoTracking()
                 .Where(item => item.Id == panelId)
-                .Select(item => new { item.Id, item.Code, item.Name })
+                .Join(dbContext.Facilities.AsNoTracking(),
+                    panel => panel.FacilityId,
+                    facility => facility.Id,
+                    (panel, facility) => new { panel.Id, panel.Code, panel.Name, facility.CompanyId })
                 .FirstOrDefaultAsync(cancellationToken)
                 ?? throw new NotFoundException($"Panel '{panelId}' was not found.");
+            var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
+            tenant.EnsureCompany(panel.CompanyId);
 
             var publicUrl = BuildPublicPanelUrl(options.Value, panel.Code);
             return Results.Ok(new QrCodeResponse(panel.Id, panel.Code, panel.Name, publicUrl, qrCodeService.CreateSvg(publicUrl)));
@@ -58,6 +65,7 @@ public static class QrEndpoints
 
         group.MapGet("/panels/{panelId:guid}/download", async (
             Guid panelId,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             IQrCodeService qrCodeService,
             IOptions<QrCodeOptions> options,
@@ -66,9 +74,14 @@ public static class QrEndpoints
             var panel = await dbContext.Panels
                 .AsNoTracking()
                 .Where(item => item.Id == panelId)
-                .Select(item => new { item.Code })
+                .Join(dbContext.Facilities.AsNoTracking(),
+                    panel => panel.FacilityId,
+                    facility => facility.Id,
+                    (panel, facility) => new { panel.Code, facility.CompanyId })
                 .FirstOrDefaultAsync(cancellationToken)
                 ?? throw new NotFoundException($"Panel '{panelId}' was not found.");
+            var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
+            tenant.EnsureCompany(panel.CompanyId);
 
             var publicUrl = BuildPublicPanelUrl(options.Value, panel.Code);
             var bytes = Encoding.UTF8.GetBytes(qrCodeService.CreateSvg(publicUrl));
@@ -79,6 +92,7 @@ public static class QrEndpoints
 
         group.MapGet("/panels/{panelId:guid}/print", async (
             Guid panelId,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             IQrCodeService qrCodeService,
             IOptions<QrCodeOptions> options,
@@ -86,6 +100,8 @@ public static class QrEndpoints
         {
             var panel = await GetPrintablePanelAsync(dbContext, panelId, cancellationToken)
                 ?? throw new NotFoundException($"Panel '{panelId}' was not found.");
+            var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
+            tenant.EnsureCompany(panel.CompanyId);
 
             var publicUrl = BuildPublicPanelUrl(options.Value, panel.Code);
             var html = BuildPrintHtml(panel.Name, panel.Code, panel.FacilityName, publicUrl, qrCodeService.CreateSvg(publicUrl));
@@ -96,17 +112,25 @@ public static class QrEndpoints
 
         group.MapPost("/panels/{panelId:guid}/regenerate", async (
             Guid panelId,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             IPanelCodeService panelCodeService,
             IQrCodeService qrCodeService,
             IOptions<QrCodeOptions> options,
             CancellationToken cancellationToken) =>
         {
-            var exists = await dbContext.Panels.AnyAsync(item => item.Id == panelId, cancellationToken);
-            if (!exists)
+            var companyId = await (
+                from panel in dbContext.Panels.AsNoTracking()
+                join facility in dbContext.Facilities.AsNoTracking() on panel.FacilityId equals facility.Id
+                where panel.Id == panelId
+                select facility.CompanyId
+            ).FirstOrDefaultAsync(cancellationToken);
+            if (companyId == Guid.Empty)
             {
                 throw new NotFoundException($"Panel '{panelId}' was not found.");
             }
+            var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
+            tenant.EnsureCompany(companyId);
 
             var code = await CreateUniquePanelCodeAsync(
                 dbContext,
@@ -162,7 +186,7 @@ public static class QrEndpoints
             from panel in dbContext.Panels.AsNoTracking()
             join facility in dbContext.Facilities.AsNoTracking() on panel.FacilityId equals facility.Id
             where panel.Id == panelId
-            select new PrintablePanel(panel.Name, panel.Code, facility.Name)
+            select new PrintablePanel(panel.Name, panel.Code, facility.Name, facility.CompanyId)
         ).FirstOrDefaultAsync(cancellationToken);
     }
 
@@ -206,4 +230,4 @@ public sealed record GeneratedQrCodeResponse(string Code, string PublicUrl, stri
 
 public sealed record QrCodeResponse(Guid PanelId, string PanelCode, string PanelName, string PublicUrl, string Svg);
 
-public sealed record PrintablePanel(string Name, string Code, string FacilityName);
+public sealed record PrintablePanel(string Name, string Code, string FacilityName, Guid CompanyId);

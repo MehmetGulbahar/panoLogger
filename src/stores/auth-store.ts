@@ -43,11 +43,12 @@ export const useAuthStore = defineStore('auth', () => {
     await loadPermissions();
   }
 
-  async function register(displayName: string, email: string, password: string): Promise<void> {
+  async function register(displayName: string, email: string, password: string, companyCode: string): Promise<void> {
     const { data } = await apiClient.post<AuthSessionResponse>(`${apiEndpoints.auth}/register`, {
       displayName,
       email,
       password,
+      companyCode,
     });
 
     setSession(data);

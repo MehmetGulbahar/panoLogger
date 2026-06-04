@@ -10,6 +10,10 @@
         <input v-model="form.companyName" required />
       </label>
       <label class="field">
+        <span>Şirket Kodu</span>
+        <input v-model="form.companyCode" required />
+      </label>
+      <label class="field">
         <span>Vergi No</span>
         <input v-model="form.taxNumber" required />
       </label>
@@ -51,6 +55,7 @@ const errorMessage = ref('');
 const form = reactive<UpdateCompanyRequest>({
   projectName: props.company.projectName,
   companyName: props.company.name,
+  companyCode: props.company.companyCode,
   taxNumber: props.company.taxNumber,
   address: props.company.address,
   contactEmail: props.company.contactEmail,

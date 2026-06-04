@@ -58,6 +58,7 @@ const company = computed(() => {
     id: '',
     name: '',
     projectName: '',
+    companyCode: '',
     taxNumber: '',
     address: '',
     contactEmail: '',

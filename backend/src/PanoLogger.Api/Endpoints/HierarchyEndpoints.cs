@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using PanoLogger.Api.Authorization;
 using PanoLogger.Application.Common.Exceptions;
@@ -17,16 +18,37 @@ public static class HierarchyEndpoints
             .WithTags("Hierarchy")
             .RequireAuthorization();
 
-        group.MapGet("/", async (PanoLoggerDbContext dbContext, CancellationToken cancellationToken) =>
+        group.MapGet("/", async (
+            ClaimsPrincipal principal,
+            PanoLoggerDbContext dbContext,
+            CancellationToken cancellationToken) =>
         {
-            var companies = await dbContext.Companies.AsNoTracking().OrderBy(item => item.ProjectName).ToListAsync(cancellationToken);
-            var facilities = await dbContext.Facilities.AsNoTracking().OrderBy(item => item.Name).ToListAsync(cancellationToken);
-            var panels = await dbContext.Panels.AsNoTracking().OrderBy(item => item.Name).ToListAsync(cancellationToken);
+            var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
+            var companiesQuery = dbContext.Companies.AsNoTracking();
+            if (!tenant.IsSuperAdmin)
+            {
+                companiesQuery = companiesQuery.Where(item => item.Id == tenant.CompanyId);
+            }
+
+            var companies = await companiesQuery.OrderBy(item => item.ProjectName).ToListAsync(cancellationToken);
+            var companyIds = companies.Select(company => company.Id).ToArray();
+            var facilities = await dbContext.Facilities
+                .AsNoTracking()
+                .Where(item => companyIds.Contains(item.CompanyId))
+                .OrderBy(item => item.Name)
+                .ToListAsync(cancellationToken);
+            var facilityIds = facilities.Select(facility => facility.Id).ToArray();
+            var panels = await dbContext.Panels
+                .AsNoTracking()
+                .Where(item => facilityIds.Contains(item.FacilityId))
+                .OrderBy(item => item.Name)
+                .ToListAsync(cancellationToken);
 
             return Results.Ok(companies.Select(company => new HierarchyCompanyResponse(
                 company.Id,
                 company.Name,
                 company.ProjectName,
+                company.CompanyCode,
                 company.TaxNumber,
                 company.Address,
                 company.ContactEmail,
@@ -60,12 +82,18 @@ public static class HierarchyEndpoints
             ValidateRequest(request);
 
             var taxNumber = request.TaxNumber.Trim();
+            var companyCode = NormalizeCompanyCode(request.CompanyCode);
             var contactEmail = request.ContactEmail.Trim().ToLowerInvariant();
             var panelCode = request.PanelCode.Trim().ToUpperInvariant();
 
             if (await dbContext.Companies.AnyAsync(item => item.TaxNumber == taxNumber, cancellationToken))
             {
                 throw new ValidationException("Bu vergi numarası ile kayıtlı bir şirket zaten var.");
+            }
+
+            if (await dbContext.Companies.AnyAsync(item => item.CompanyCode == companyCode, cancellationToken))
+            {
+                throw new ValidationException("Bu şirket kodu zaten kullanılıyor.");
             }
 
             if (await dbContext.Panels.AnyAsync(item => item.Code == panelCode, cancellationToken))
@@ -77,6 +105,7 @@ public static class HierarchyEndpoints
             {
                 Name = request.CompanyName.Trim(),
                 ProjectName = request.ProjectName.Trim(),
+                CompanyCode = companyCode,
                 TaxNumber = taxNumber,
                 Address = request.CompanyAddress.Trim(),
                 ContactEmail = contactEmail,
@@ -108,6 +137,7 @@ public static class HierarchyEndpoints
                     company.Id,
                     company.Name,
                     company.ProjectName,
+                    company.CompanyCode,
                     company.TaxNumber,
                     company.Address,
                     company.ContactEmail,
@@ -138,9 +168,10 @@ public static class HierarchyEndpoints
             PanoLoggerDbContext dbContext,
             CancellationToken cancellationToken) =>
         {
-            ValidateCompanyRequest(request.ProjectName, request.CompanyName, request.TaxNumber, request.Address, request.ContactEmail);
+            ValidateCompanyRequest(request.ProjectName, request.CompanyName, request.CompanyCode, request.TaxNumber, request.Address, request.ContactEmail);
 
             var taxNumber = request.TaxNumber.Trim();
+            var companyCode = NormalizeCompanyCode(request.CompanyCode);
             var contactEmail = request.ContactEmail.Trim().ToLowerInvariant();
 
             if (await dbContext.Companies.AnyAsync(
@@ -150,12 +181,20 @@ public static class HierarchyEndpoints
                 throw new ValidationException("Bu vergi numarası ile kayıtlı bir şirket zaten var.");
             }
 
+            if (await dbContext.Companies.AnyAsync(
+                item => item.Id != companyId && item.CompanyCode == companyCode,
+                cancellationToken))
+            {
+                throw new ValidationException("Bu şirket kodu zaten kullanılıyor.");
+            }
+
             var updatedRows = await dbContext.Companies
                 .Where(item => item.Id == companyId)
                 .ExecuteUpdateAsync(
                     setters => setters
                         .SetProperty(item => item.ProjectName, request.ProjectName.Trim())
                         .SetProperty(item => item.Name, request.CompanyName.Trim())
+                        .SetProperty(item => item.CompanyCode, companyCode)
                         .SetProperty(item => item.TaxNumber, taxNumber)
                         .SetProperty(item => item.Address, request.Address.Trim())
                         .SetProperty(item => item.ContactEmail, contactEmail)
@@ -205,6 +244,7 @@ public static class HierarchyEndpoints
         group.MapPut("/facilities/{facilityId:guid}", async (
             Guid facilityId,
             UpdateFacilityRequest request,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             CancellationToken cancellationToken) =>
         {
@@ -220,6 +260,8 @@ public static class HierarchyEndpoints
                 .Select(item => new { item.CompanyId })
                 .FirstOrDefaultAsync(cancellationToken)
                 ?? throw new NotFoundException($"Facility '{facilityId}' was not found.");
+            var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
+            tenant.EnsureCompany(facility.CompanyId);
 
             if (await dbContext.Facilities.AnyAsync(
                 item => item.Id != facilityId && item.CompanyId == facility.CompanyId && item.Name == name,
@@ -246,6 +288,7 @@ public static class HierarchyEndpoints
 
         group.MapPost("/facilities", async (
             CreateFacilityRequest request,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             CancellationToken cancellationToken) =>
         {
@@ -253,6 +296,9 @@ public static class HierarchyEndpoints
             {
                 throw new ValidationException("Tüm tesis alanları zorunludur.");
             }
+
+            var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
+            tenant.EnsureCompany(request.CompanyId);
 
             if (!await dbContext.Companies.AnyAsync(item => item.Id == request.CompanyId, cancellationToken))
             {
@@ -295,12 +341,15 @@ public static class HierarchyEndpoints
 
         group.MapDelete("/facilities/{facilityId:guid}", async (
             Guid facilityId,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             IFileStorageService fileStorageService,
             CancellationToken cancellationToken) =>
         {
             var facility = await dbContext.Facilities.FirstOrDefaultAsync(item => item.Id == facilityId, cancellationToken)
                 ?? throw new NotFoundException($"Facility '{facilityId}' was not found.");
+            var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
+            tenant.EnsureCompany(facility.CompanyId);
 
             var storagePaths = await (
                 from panel in dbContext.Panels.AsNoTracking()
@@ -325,6 +374,7 @@ public static class HierarchyEndpoints
         group.MapPut("/panels/{panelId:guid}", async (
             Guid panelId,
             UpdatePanelRequest request,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             CancellationToken cancellationToken) =>
         {
@@ -337,10 +387,16 @@ public static class HierarchyEndpoints
             var name = request.Name.Trim();
             var panel = await dbContext.Panels
                 .AsNoTracking()
-                .Where(item => item.Id == panelId)
-                .Select(item => new { item.FacilityId })
+                .Join(dbContext.Facilities.AsNoTracking(),
+                    panel => panel.FacilityId,
+                    facility => facility.Id,
+                    (panel, facility) => new { Panel = panel, Facility = facility })
+                .Where(item => item.Panel.Id == panelId)
+                .Select(item => new { item.Panel.FacilityId, item.Facility.CompanyId })
                 .FirstOrDefaultAsync(cancellationToken)
                 ?? throw new NotFoundException($"Panel '{panelId}' was not found.");
+            var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
+            tenant.EnsureCompany(panel.CompanyId);
 
             if (await dbContext.Panels.AnyAsync(item => item.Id != panelId && item.Code == code, cancellationToken))
             {
@@ -371,6 +427,7 @@ public static class HierarchyEndpoints
 
         group.MapPost("/panels", async (
             CreatePanelRequest request,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             CancellationToken cancellationToken) =>
         {
@@ -378,6 +435,9 @@ public static class HierarchyEndpoints
             {
                 throw new ValidationException("Tüm pano alanları zorunludur.");
             }
+
+            var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
+            tenant.EnsureCompany(request.CompanyId);
 
             if (!await dbContext.Facilities.AnyAsync(
                 item => item.Id == request.FacilityId && item.CompanyId == request.CompanyId,
@@ -420,12 +480,19 @@ public static class HierarchyEndpoints
 
         group.MapDelete("/panels/{panelId:guid}", async (
             Guid panelId,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             IFileStorageService fileStorageService,
             CancellationToken cancellationToken) =>
         {
             var panel = await dbContext.Panels.FirstOrDefaultAsync(item => item.Id == panelId, cancellationToken)
                 ?? throw new NotFoundException($"Panel '{panelId}' was not found.");
+            var companyId = await dbContext.Facilities
+                .Where(facility => facility.Id == panel.FacilityId)
+                .Select(facility => facility.CompanyId)
+                .FirstAsync(cancellationToken);
+            var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
+            tenant.EnsureCompany(companyId);
 
             var storagePaths = await dbContext.PanelFiles
                 .AsNoTracking()
@@ -455,6 +522,7 @@ public static class HierarchyEndpoints
         {
             request.ProjectName,
             request.CompanyName,
+            request.CompanyCode,
             request.TaxNumber,
             request.CompanyAddress,
             request.ContactEmail,
@@ -481,11 +549,12 @@ public static class HierarchyEndpoints
     private static void ValidateCompanyRequest(
         string projectName,
         string companyName,
+        string companyCode,
         string taxNumber,
         string address,
         string contactEmail)
     {
-        if (new[] { projectName, companyName, taxNumber, address, contactEmail }.Any(string.IsNullOrWhiteSpace))
+        if (new[] { projectName, companyName, companyCode, taxNumber, address, contactEmail }.Any(string.IsNullOrWhiteSpace))
         {
             throw new ValidationException("Tüm şirket alanları zorunludur.");
         }
@@ -495,11 +564,23 @@ public static class HierarchyEndpoints
             throw new ValidationException("Geçerli bir iletişim e-postası girin.");
         }
     }
+
+    private static string NormalizeCompanyCode(string companyCode)
+    {
+        var normalized = companyCode.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            throw new ValidationException("Şirket kodu zorunludur.");
+        }
+
+        return normalized;
+    }
 }
 
 public sealed record CreateSystemRequest(
     string ProjectName,
     string CompanyName,
+    string CompanyCode,
     string TaxNumber,
     string CompanyAddress,
     string ContactEmail,
@@ -514,6 +595,7 @@ public sealed record CreateSystemRequest(
 public sealed record UpdateCompanyRequest(
     string ProjectName,
     string CompanyName,
+    string CompanyCode,
     string TaxNumber,
     string Address,
     string ContactEmail);
@@ -530,6 +612,7 @@ public sealed record HierarchyCompanyResponse(
     Guid Id,
     string Name,
     string ProjectName,
+    string CompanyCode,
     string TaxNumber,
     string Address,
     string ContactEmail,

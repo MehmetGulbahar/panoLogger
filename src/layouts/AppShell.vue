@@ -1,5 +1,5 @@
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'app-shell--admin': isAdminRoute }">
     <div class="app-page-shell">
       <AppHeader />
       <div class="app-shell__body">
@@ -38,9 +38,13 @@ import AppHeader from './components/AppHeader.vue';
 import AppSidebar from './components/AppSidebar.vue';
 import MobileBottomNav from '@/components/mobile/MobileBottomNav.vue';
 import FloatingActionButton from '@/components/mobile/FloatingActionButton.vue';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import { useRoute } from 'vue-router';
+import { routeNames } from '@/constants/routes';
 
 const drawerOpen = ref(false);
+const route = useRoute();
+const isAdminRoute = computed(() => route.name === routeNames.admin);
 
 function onFabClick() {
   drawerOpen.value = !drawerOpen.value;
@@ -66,10 +70,38 @@ function createQuick() {
   flex-direction: column;
 }
 
+.app-shell--admin .app-page-shell {
+  height: 100vh;
+  overflow: hidden;
+}
+
 .app-shell__body {
   display: flex;
   min-height: 0;
   flex: 1;
+}
+
+.app-shell--admin .app-shell__body {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  align-items: start;
+  height: calc(100vh - 56px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-shell--admin :deep(.app-sidebar) {
+  position: static;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.app-shell--admin :deep(.app-sidebar__main) {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.15rem;
 }
 
 .app-shell__content {
@@ -78,6 +110,12 @@ function createQuick() {
   flex: 1;
   min-width: 0;
   background: var(--app-bg);
+}
+
+.app-shell--admin .app-shell__content {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .app-shell__toolbar {
@@ -91,7 +129,34 @@ function createQuick() {
 
 @media (max-width: 960px) {
   .app-shell__body {
+    display: flex;
     flex-direction: column;
+  }
+
+  .app-shell--admin .app-shell__body {
+    display: flex;
+    grid-template-columns: none;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .app-shell--admin :deep(.app-sidebar) {
+    position: static;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .app-shell--admin .app-page-shell,
+  .app-shell--admin .app-shell__content {
+    height: auto;
+    overflow: visible;
+  }
+
+  .app-shell--admin :deep(.app-sidebar__main) {
+    overflow: visible;
+    padding-right: 0;
   }
 
   .app-page-shell {

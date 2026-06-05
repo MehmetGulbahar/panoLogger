@@ -169,7 +169,7 @@ async function onSubmit(): Promise<void> {
       toast.add({
         severity: 'success',
         summary: 'Hesap oluşturuldu',
-        detail: 'Kaydınız tamamlandı. PanoDocs ortamına hoş geldiniz.',
+        detail: 'Kaydınız tamamlandı. PanoVeri ortamına hoş geldiniz.',
         life: 3500,
       });
     } else {

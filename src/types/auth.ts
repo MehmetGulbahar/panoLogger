@@ -1,4 +1,4 @@
-export type UserRole = 'SuperAdmin' | 'CompanyAdmin' | 'FacilityManager' | 'Viewer';
+export type UserRole = string;
 
 export type Permission =
   | 'companies.view'
@@ -9,9 +9,14 @@ export type Permission =
   | 'facilities.manage'
   | 'panels.manage'
   | 'files.manage'
+  | 'files.delete'
   | 'qr.manage'
   | 'reports.view'
-  | 'public-panels.view';
+  | 'public-panels.view'
+  | 'users.manage'
+  | 'roles.manage'
+  | 'admin.view'
+  | string;
 
 export interface AuthUser {
   id: string;
@@ -19,6 +24,7 @@ export interface AuthUser {
   displayName: string;
   companyId?: string | null;
   roles: UserRole[];
+  permissions?: Permission[];
 }
 
 export interface AuthSessionResponse {

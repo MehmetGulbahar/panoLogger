@@ -10,9 +10,32 @@ public static class AppPermissions
     public const string ManageFacilities = "facilities.manage";
     public const string ManagePanels = "panels.manage";
     public const string ManageFiles = "files.manage";
+    public const string DeleteFiles = "files.delete";
     public const string ManageQrCodes = "qr.manage";
     public const string ViewReports = "reports.view";
     public const string ViewPublicPanels = "public-panels.view";
+    public const string ManageUsers = "users.manage";
+    public const string ManageRoles = "roles.manage";
+    public const string ViewAdmin = "admin.view";
+
+    public static readonly string[] All =
+    [
+        ViewCompanies,
+        ViewFacilities,
+        ViewPanels,
+        ViewFiles,
+        ManageCompanies,
+        ManageFacilities,
+        ManagePanels,
+        ManageFiles,
+        DeleteFiles,
+        ManageQrCodes,
+        ViewReports,
+        ViewPublicPanels,
+        ManageUsers,
+        ManageRoles,
+        ViewAdmin
+    ];
 
     public static IReadOnlyCollection<string> ForRoles(IEnumerable<string> roles)
     {
@@ -30,9 +53,13 @@ public static class AppPermissions
                 ManageFacilities,
                 ManagePanels,
                 ManageFiles,
+                DeleteFiles,
                 ManageQrCodes,
                 ViewReports,
-                ViewPublicPanels
+                ViewPublicPanels,
+                ManageUsers,
+                ManageRoles,
+                ViewAdmin
             ]);
         }
 

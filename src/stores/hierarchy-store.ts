@@ -82,6 +82,12 @@ export const useHierarchyStore = defineStore('hierarchy', () => {
     await load(true);
   }
 
+  function reset(): void {
+    companies.value = [];
+    isLoaded.value = false;
+    isLoading.value = false;
+  }
+
   return {
     companies,
     facilities,
@@ -98,5 +104,6 @@ export const useHierarchyStore = defineStore('hierarchy', () => {
     updatePanel,
     createPanel,
     deletePanel,
+    reset,
   };
 });

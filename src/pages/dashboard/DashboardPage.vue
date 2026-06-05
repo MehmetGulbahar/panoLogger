@@ -2,7 +2,7 @@
   <div class="dashboard-page">
     <header class="dashboard-header">
       <h1>Hoş Geldiniz!</h1>
-      <p class="muted">PanoDocs ortamını keşfedin. Soldaki menüden proje, mağaza ve pano detaylarını inceleyebilirsiniz.</p>
+      <p class="muted">PanoVeri ortamını keşfedin. Soldaki menüden proje, mağaza ve pano detaylarını inceleyebilirsiniz.</p>
     </header>
 
     <section class="stats-row">

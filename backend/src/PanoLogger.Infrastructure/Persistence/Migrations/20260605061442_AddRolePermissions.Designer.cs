@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PanoLogger.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using PanoLogger.Infrastructure.Persistence;
 namespace PanoLogger.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PanoLoggerDbContext))]
-    partial class PanoLoggerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260605061442_AddRolePermissions")]
+    partial class AddRolePermissions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -562,12 +565,6 @@ namespace PanoLogger.Infrastructure.Persistence.Migrations
                         {
                             RoleId = new Guid("11111111-1111-1111-1111-111111111111"),
                             Permission = "files.manage",
-                            GrantedAtUtc = new DateTimeOffset(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
-                        },
-                        new
-                        {
-                            RoleId = new Guid("11111111-1111-1111-1111-111111111111"),
-                            Permission = "files.delete",
                             GrantedAtUtc = new DateTimeOffset(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
                         },
                         new

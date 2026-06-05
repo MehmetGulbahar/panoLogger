@@ -7,6 +7,7 @@ export const routeNames = {
   facilityDetail: 'facility-detail',
   panels: 'panels',
   panelDetail: 'panel-detail',
+  admin: 'admin',
   publicPanel: 'public-panel',
   designColors: 'design-colors',
 };

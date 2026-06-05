@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 
 import { apiClient } from '@/api/client';
 import { apiEndpoints } from '@/api/endpoints';
+import { useHierarchyStore } from './hierarchy-store';
 import type { AuthSessionResponse, AuthUser, Permission, PermissionsResponse, UserRole } from '@/types';
 
 const LEGACY_AUTH_KEYS = [
@@ -20,6 +21,7 @@ export const useAuthStore = defineStore('auth', () => {
   const roles = computed<UserRole[]>(() => user.value?.roles ?? []);
 
   function setSession(session: AuthSessionResponse): void {
+    resetTenantScopedStores();
     user.value = session.user;
   }
 
@@ -65,6 +67,7 @@ export const useAuthStore = defineStore('auth', () => {
     } catch {
       user.value = null;
       permissions.value = [];
+      resetTenantScopedStores();
     } finally {
       isHydrated.value = true;
     }
@@ -92,12 +95,21 @@ export const useAuthStore = defineStore('auth', () => {
     return permissions.value.includes(permission);
   }
 
+  function hasAllPermissions(requiredPermissions?: Permission[]): boolean {
+    if (!requiredPermissions?.length) {
+      return true;
+    }
+
+    return requiredPermissions.every((permission) => permissions.value.includes(permission));
+  }
+
   async function logout(): Promise<void> {
     try {
       await apiClient.post(`${apiEndpoints.auth}/logout`);
     } finally {
       user.value = null;
       permissions.value = [];
+      resetTenantScopedStores();
     }
   }
 
@@ -116,6 +128,7 @@ export const useAuthStore = defineStore('auth', () => {
     loadPermissions,
     hasAnyRole,
     hasPermission,
+    hasAllPermissions,
     logout,
   };
 });
@@ -124,4 +137,8 @@ function clearLegacyAuthStorage(): void {
   for (const key of LEGACY_AUTH_KEYS) {
     localStorage.removeItem(key);
   }
+}
+
+function resetTenantScopedStores(): void {
+  useHierarchyStore().reset();
 }

@@ -11,10 +11,7 @@
     </div>
 
     <div class="app-header__right">
-      <div class="app-header__search">
-        <span class="app-header__search-icon pi pi-search" aria-hidden="true"></span>
-        <InputText v-model="searchValue" placeholder="Ara" class="app-header__search-input" />
-      </div>
+    
 
       <div class="app-header__actions">
         <div ref="userMenuRoot" class="app-header__user">

@@ -34,6 +34,10 @@ appRouter.beforeEach(async (to) => {
     return { name: routeNames.dashboard };
   }
 
+  if (!authStore.hasAllPermissions(to.meta.requiredPermissions)) {
+    return { name: routeNames.dashboard };
+  }
+
   return true;
 });
 

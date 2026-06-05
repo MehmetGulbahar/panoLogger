@@ -62,6 +62,7 @@ app.UseAuthorization();
 
 app.MapHealthEndpoints();
 app.MapAuthEndpoints();
+app.MapAdminEndpoints();
 app.MapHierarchyEndpoints();
 app.MapQrEndpoints();
 app.MapFileEndpoints();

@@ -58,5 +58,10 @@ export const useHierarchyStore = defineStore('hierarchy', () => {
         await apiClient.delete(`${apiEndpoints.hierarchy}/panels/${panelId}`);
         await load(true);
     }
-    return { companies, facilities, panels, isLoading, isLoaded, load, createSystem, updateCompany, deleteCompany, updateFacility, createFacility, deleteFacility, updatePanel, createPanel, deletePanel };
+    function reset() {
+        companies.value = [];
+        isLoaded.value = false;
+        isLoading.value = false;
+    }
+    return { companies, facilities, panels, isLoading, isLoaded, load, createSystem, updateCompany, deleteCompany, updateFacility, createFacility, deleteFacility, updatePanel, createPanel, deletePanel, reset };
 });

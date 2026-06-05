@@ -3,17 +3,17 @@
     <header class="panel-header">
       <div>
         <h1 class="panel-title">{{ panel.name }}</h1>
-        <div class="panel-sub">{{ panel.code }} · {{ facility.address ? facility.address.split(',')[0] : facility.city }} · {{ facility.name }}</div>
+        <div class="panel-sub">{{ panel.code }} - {{ facility.address ? facility.address.split(',')[0] : facility.city }} - {{ facility.name }}</div>
       </div>
 
       <div v-if="hasPanelActions" class="panel-actions">
         <UiButton v-if="canManageQr" variant="ghost" class="mr" :disabled="isCreatingQr" @click="onCreateQr">
           <i :class="isCreatingQr ? 'pi pi-spin pi-spinner' : 'pi pi-qrcode'" aria-hidden="true"></i>
-          {{ isCreatingQr ? 'Oluşturuluyor' : 'QR Kodu Oluştur' }}
+          {{ isCreatingQr ? 'Olusturuluyor' : 'QR Kodu Oluştur' }}
         </UiButton>
         <UiButton v-if="canManageFiles" color="primary" :disabled="isUploading" @click="openFilePicker">
           <i :class="isUploading ? 'pi pi-spin pi-spinner' : 'pi pi-upload'" aria-hidden="true"></i>
-          {{ isUploading ? 'Yükleniyor' : 'Dosya Yükle' }}
+          {{ isUploading ? 'Yükleniyor' : `${activeTab.label} Yükle` }}
         </UiButton>
         <input
           ref="fileInput"
@@ -28,16 +28,24 @@
     <p v-if="qrError" class="panel-error" role="alert">{{ qrError }}</p>
     <p v-if="fileError" class="panel-error" role="alert">{{ fileError }}</p>
 
-    <nav class="panel-tabs" role="tablist">
-      <button class="tab active" role="tab">Bakım</button>
-      <button class="tab" role="tab">Tek Hat</button>
-      <button class="tab" role="tab">Proje</button>
+    <nav class="panel-tabs" role="tablist" aria-label="Dosya kategorileri">
+      <button
+        v-for="tab in fileTabs"
+        :key="tab.key"
+        :class="['tab', { active: activeFileTab === tab.key }]"
+        type="button"
+        role="tab"
+        :aria-selected="activeFileTab === tab.key"
+        @click="activeFileTab = tab.key"
+      >
+        {{ tab.label }}
+      </button>
     </nav>
 
     <main>
       <section class="panel-card card">
         <div class="panel-card__header">
-          <h3><i class="pi pi-wrench"></i> Bakım Raporu</h3>
+          <h3><i :class="activeTab.icon" aria-hidden="true"></i> {{ activeTab.title }}</h3>
         </div>
 
         <div class="panel-card__body">
@@ -46,21 +54,31 @@
             <p class="empty-title">Dosyalar yükleniyor</p>
           </div>
 
-          <div v-else-if="panelFiles.length === 0" class="empty-state">
+          <div v-else-if="activePanelFiles.length === 0" class="empty-state">
             <i class="pi pi-file" aria-hidden="true"></i>
-            <p class="empty-title">Bu kategoride henüz dosya yok</p>
+            <p class="empty-title">Bu kategoride henuz dosya yok</p>
             <p class="empty-sub">{{ emptyStateSubtitle }}</p>
           </div>
 
           <div v-else class="file-list">
-            <div v-for="item in panelFiles" :key="item.id" class="file-row">
+            <div v-for="item in activePanelFiles" :key="item.id" class="file-row">
               <i class="pi pi-file file-row__icon" aria-hidden="true"></i>
               <div class="file-row__copy">
                 <strong>{{ item.fileName }}</strong>
-                <span>{{ formatFileSize(item.sizeBytes) }}</span>
+                <span>{{ item.category }} - {{ formatFileSize(item.sizeBytes) }}</span>
               </div>
-              <button class="file-row__download" type="button" title="İndir" @click="downloadFile(item)">
+              <button class="file-row__download" type="button" title="Indir" @click="downloadFile(item)">
                 <i class="pi pi-download" aria-hidden="true"></i>
+              </button>
+              <button
+                v-if="canDeleteFiles"
+                class="file-row__delete"
+                type="button"
+                title="Sil"
+                :disabled="deletingFileIds.has(item.id)"
+                @click="confirmDeleteFile($event, item)"
+              >
+                <i :class="deletingFileIds.has(item.id) ? 'pi pi-spin pi-spinner' : 'pi pi-trash'" aria-hidden="true"></i>
               </button>
             </div>
           </div>
@@ -73,6 +91,7 @@
 <script setup lang="ts">
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
+import { useConfirm } from 'primevue/useconfirm';
 import { useRoute } from 'vue-router';
 import { apiClient } from '@/api/client';
 import { apiEndpoints } from '@/api/endpoints';
@@ -80,10 +99,42 @@ import QrCodeModal from '@/components/qr/QrCodeModal.vue';
 import { useAuthStore, useHierarchyStore } from '@/stores';
 import { useFileStore } from '@/stores/file-store';
 import { useModalStore } from '@/stores/modal-store';
+import { appRoles } from '@/utils/authorization';
 import type { FileDownloadResponse, PanelFileResponse } from '@/types/files';
-import type { GeneratedQrCodeResponse } from '@/types/qr';
+import type { GeneratedQrCodeResponse, QrCodeResponse } from '@/types/qr';
+
+type FileTabKey = 'MaintenanceReport' | 'ElectricalProject' | 'PanelDocument';
+
+type FileTab = {
+  key: FileTabKey;
+  label: string;
+  title: string;
+  icon: string;
+};
+
+const fileTabs: FileTab[] = [
+  {
+    key: 'MaintenanceReport',
+    label: 'Bakım',
+    title: 'Bakım Raporu',
+    icon: 'pi pi-wrench',
+  },
+  {
+    key: 'ElectricalProject',
+    label: 'Tek Hat',
+    title: 'Tek Hat Dosyaları',
+    icon: 'pi pi-sitemap',
+  },
+  {
+    key: 'PanelDocument',
+    label: 'Proje',
+    title: 'Proje Dosyaları',
+    icon: 'pi pi-file',
+  },
+];
 
 const route = useRoute();
+const confirm = useConfirm();
 const panelId = computed(() => String(route.params.panelId ?? ''));
 const authStore = useAuthStore();
 const hierarchyStore = useHierarchyStore();
@@ -92,27 +143,34 @@ const isCreatingQr = ref(false);
 const qrError = ref('');
 const fileInput = ref<HTMLInputElement | null>(null);
 const panelFiles = ref<PanelFileResponse[]>([]);
+const activeFileTab = ref<FileTabKey>('MaintenanceReport');
 const isLoadingFiles = ref(false);
 const isUploading = ref(false);
 const fileError = ref('');
 const canManageQr = computed(() => authStore.hasPermission('qr.manage'));
 const canManageFiles = computed(() => authStore.hasPermission('files.manage'));
+const canDeleteFiles = computed(() => (
+  authStore.hasPermission('files.delete')
+  || authStore.hasAnyRole([appRoles.superAdmin])
+));
 const hasPanelActions = computed(() => canManageQr.value || canManageFiles.value);
+const activeTab = computed(() => fileTabs.find((tab) => tab.key === activeFileTab.value) ?? fileTabs[0]);
+const activePanelFiles = computed(() => panelFiles.value.filter((file) => file.category === activeFileTab.value));
 const emptyStateSubtitle = computed(() => (
   canManageFiles.value
-    ? 'Yukarıdaki butonu kullanarak dosya yükleyebilirsiniz'
-    : 'Bu kategori için dosya bulunmuyor'
+    ? `${activeTab.value.label} sekmesindeyken yukleme butonunu kullanabilirsiniz`
+    : 'Bu kategori icin dosya bulunmuyor'
 ));
-
-const panel = computed(() => {
-  if (panelId.value) return hierarchyStore.panels.find((p) => p.id === panelId.value) ?? emptyPanel;
-  return emptyPanel;
-});
 
 const emptyPanel = { id: '', facilityId: '', code: '', name: '', description: '' };
 const emptyFacility = { id: '', companyId: '', name: '', city: '', district: '', address: '', panels: [] };
-const facility = computed(() => hierarchyStore.facilities.find((f) => f.id === panel.value.facilityId) ?? emptyFacility);
+const panel = computed(() => {
+  if (panelId.value) return hierarchyStore.panels.find((item) => item.id === panelId.value) ?? emptyPanel;
+  return emptyPanel;
+});
+const facility = computed(() => hierarchyStore.facilities.find((item) => item.id === panel.value.facilityId) ?? emptyFacility);
 const fileStore = useFileStore();
+const deletingFileIds = ref<Set<string>>(new Set());
 
 watch(panelId, async (nextPanelId) => {
   panelFiles.value = [];
@@ -128,19 +186,21 @@ async function onCreateQr() {
   qrError.value = '';
 
   try {
-    const { data } = await apiClient.post<GeneratedQrCodeResponse>(`${apiEndpoints.qr}/panel-codes`, {
-      prefix: 'PNL',
-    });
+    const { data } = await apiClient.get<QrCodeResponse>(`${apiEndpoints.qr}/panels/${panelId.value}`);
 
-    panel.value.code = data.code;
+    const qr: GeneratedQrCodeResponse = {
+      code: data.panelCode,
+      publicUrl: data.publicUrl,
+      svg: data.svg,
+    };
+
+    panel.value.code = data.panelCode;
     modalStore.open(QrCodeModal, {
-      panelName: panel.value.name,
-      qr: data,
+      panelName: data.panelName || panel.value.name,
+      qr,
     });
   } catch (error) {
-    qrError.value = axios.isAxiosError(error) && typeof error.response?.data?.detail === 'string'
-      ? error.response.data.detail
-      : 'QR kodu oluşturulamadı. API bağlantısını ve kullanıcı yetkisini kontrol edin.';
+    qrError.value = getApiError(error, 'QR kodu olusturulamadi. API baglantisini ve kullanici yetkisini kontrol edin.');
   } finally {
     isCreatingQr.value = false;
   }
@@ -164,7 +224,7 @@ async function onFileSelected(event: Event) {
   try {
     const formData = new FormData();
     formData.append('file', selectedFile);
-    formData.append('category', 'MaintenanceReport');
+    formData.append('category', activeFileTab.value);
 
     const { data } = await apiClient.post<PanelFileResponse>(
       `${apiEndpoints.files}/panels/${panel.value.id}`,
@@ -175,7 +235,7 @@ async function onFileSelected(event: Event) {
     panelFiles.value.unshift(data);
     fileStore.setPanelFileCount(panel.value.id, panelFiles.value.length);
   } catch (error) {
-    fileError.value = getApiError(error, 'Dosya yüklenemedi. Supabase Storage ayarlarını ve dosya türünü kontrol edin.');
+    fileError.value = getApiError(error, 'Dosya yuklenemedi. Supabase Storage ayarlarini ve dosya turunu kontrol edin.');
   } finally {
     isUploading.value = false;
     input.value = '';
@@ -198,7 +258,7 @@ async function loadFiles(requestedPanelId = panel.value.id) {
     }
   } catch (error) {
     if (panelId.value === requestedPanelId) {
-      fileError.value = getApiError(error, 'Dosyalar yüklenemedi.');
+      fileError.value = getApiError(error, 'Dosyalar yuklenemedi.');
     }
   } finally {
     if (panelId.value === requestedPanelId) {
@@ -214,7 +274,38 @@ async function downloadFile(item: PanelFileResponse) {
     const { data } = await apiClient.get<FileDownloadResponse>(`${apiEndpoints.files}/${item.id}/download`);
     window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
   } catch (error) {
-    fileError.value = getApiError(error, 'Dosya indirme bağlantısı oluşturulamadı.');
+    fileError.value = getApiError(error, 'Dosya indirme baglantisi olusturulamadi.');
+  }
+}
+
+function confirmDeleteFile(event: MouseEvent, item: PanelFileResponse) {
+  confirm.require({
+    target: event.currentTarget as HTMLElement,
+    message: `${item.fileName} dosyasini silmek istiyor musunuz?`,
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: 'Dosyayı Sil',
+    rejectLabel: 'Vazgeç',
+    acceptClass: 'p-button-danger',
+    accept: () => {
+      void deleteFile(item);
+    },
+  });
+}
+
+async function deleteFile(item: PanelFileResponse) {
+  fileError.value = '';
+  deletingFileIds.value = new Set(deletingFileIds.value).add(item.id);
+
+  try {
+    await apiClient.delete(`${apiEndpoints.files}/${item.id}`);
+    panelFiles.value = panelFiles.value.filter((file) => file.id !== item.id);
+    fileStore.setPanelFileCount(panel.value.id, panelFiles.value.length);
+  } catch (error) {
+    fileError.value = getApiError(error, 'Dosya silinemedi. Yetkinizi ve API durumunu kontrol edin.');
+  } finally {
+    const nextDeletingFileIds = new Set(deletingFileIds.value);
+    nextDeletingFileIds.delete(item.id);
+    deletingFileIds.value = nextDeletingFileIds;
   }
 }
 
@@ -241,8 +332,8 @@ function getApiError(error: unknown, fallback: string) {
 .panel-error { margin:0 0 0.9rem; padding:0.6rem 0.75rem; border:1px solid #fecaca; border-radius:8px; background:#fef2f2; color:#b91c1c; font-size:0.8125rem }
 
 .panel-tabs { display:flex; gap:0.4rem; margin-bottom:0.9rem }
-.tab { background:var(--app-surface); border:1px solid var(--app-border); padding:0.45rem 0.75rem; border-radius:8px; color:var(--app-text-muted); font-size:0.8125rem; line-height:1.2 }
-.tab.active { background:var(--app-surface-alt); color:var(--app-text); font-weight:600 }
+.tab { background:var(--app-surface); border:1px solid var(--app-border); padding:0.45rem 0.75rem; border-radius:8px; color:var(--app-text-muted); font-size:0.8125rem; line-height:1.2; cursor:pointer }
+.tab.active { background:var(--app-surface-alt); color:var(--app-text); font-weight:600; border-color:rgba(37,99,235,0.35) }
 
 .panel-card.card { padding:1rem 1.25rem; border-radius:10px; border:1px solid var(--app-border); background:var(--app-bg) }
 .panel-card__header { margin-bottom:0.9rem }
@@ -261,8 +352,13 @@ function getApiError(error: unknown, fallback: string) {
 .file-row__copy { display:grid; gap:0.1rem; min-width:0; flex:1 }
 .file-row__copy strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.8125rem }
 .file-row__copy span { color:var(--app-text-muted); font-size:0.6875rem }
-.file-row__download { width:2rem; height:2rem; display:grid; place-items:center; border:0; border-radius:6px; background:transparent; color:var(--app-primary); cursor:pointer }
-.file-row__download:hover { background:var(--app-surface-alt) }
+.file-row__download,
+.file-row__delete { width:2rem; height:2rem; display:grid; place-items:center; border:0; border-radius:6px; background:transparent; cursor:pointer }
+.file-row__download { color:var(--app-primary) }
+.file-row__delete { color:#b91c1c }
+.file-row__download:hover,
+.file-row__delete:hover:not(:disabled) { background:var(--app-surface-alt) }
+.file-row__delete:disabled { opacity:0.6; cursor:wait }
 
 @media (max-width: 760px) {
   .panel-header { flex-direction:column; align-items:flex-start }

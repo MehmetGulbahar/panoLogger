@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { apiClient } from '@/api/client';
 import { apiEndpoints } from '@/api/endpoints';
+import { useHierarchyStore } from './hierarchy-store';
 const LEGACY_AUTH_KEYS = [
     'panologger.accessToken',
     'panologger.refreshToken',
@@ -14,6 +15,7 @@ export const useAuthStore = defineStore('auth', () => {
     const isAuthenticated = computed(() => Boolean(user.value));
     const roles = computed(() => user.value?.roles ?? []);
     function setSession(session) {
+        resetTenantScopedStores();
         user.value = session.user;
     }
     async function loginDev(email, rolesToRequest = ['SuperAdmin']) {
@@ -52,6 +54,7 @@ export const useAuthStore = defineStore('auth', () => {
         catch {
             user.value = null;
             permissions.value = [];
+            resetTenantScopedStores();
         }
         finally {
             isHydrated.value = true;
@@ -74,6 +77,12 @@ export const useAuthStore = defineStore('auth', () => {
     function hasPermission(permission) {
         return permissions.value.includes(permission);
     }
+    function hasAllPermissions(requiredPermissions) {
+        if (!requiredPermissions?.length) {
+            return true;
+        }
+        return requiredPermissions.every((permission) => permissions.value.includes(permission));
+    }
     async function logout() {
         try {
             await apiClient.post(`${apiEndpoints.auth}/logout`);
@@ -81,6 +90,7 @@ export const useAuthStore = defineStore('auth', () => {
         finally {
             user.value = null;
             permissions.value = [];
+            resetTenantScopedStores();
         }
     }
     clearLegacyAuthStorage();
@@ -97,6 +107,7 @@ export const useAuthStore = defineStore('auth', () => {
         loadPermissions,
         hasAnyRole,
         hasPermission,
+        hasAllPermissions,
         logout,
     };
 });
@@ -104,4 +115,7 @@ function clearLegacyAuthStorage() {
     for (const key of LEGACY_AUTH_KEYS) {
         localStorage.removeItem(key);
     }
+}
+function resetTenantScopedStores() {
+    useHierarchyStore().reset();
 }

@@ -1,5 +1,6 @@
 export const apiEndpoints = {
     auth: '/auth',
+    admin: '/admin',
     hierarchy: '/hierarchy',
     companies: '/companies',
     facilities: '/facilities',
@@ -7,4 +8,5 @@ export const apiEndpoints = {
     files: '/files',
     maintenanceReports: '/maintenance-reports',
     qr: '/qr',
+    public: '/public',
 };

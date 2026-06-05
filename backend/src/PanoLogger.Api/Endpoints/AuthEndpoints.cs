@@ -66,12 +66,15 @@ public static class AuthEndpoints
 
             await dbContext.SaveChangesAsync(cancellationToken);
 
+            var permissions = await GetPermissionsForRolesAsync(dbContext, [AppRoles.Viewer], cancellationToken);
+
             return Results.Ok(CreateSessionResponse(
                 user.Id,
                 user.Email,
                 user.DisplayName,
                 user.CompanyId,
                 [AppRoles.Viewer],
+                permissions,
                 jwtTokenService,
                 jwtOptions.Value,
                 httpContext));
@@ -110,12 +113,15 @@ public static class AuthEndpoints
                 throw new UnauthorizedAccessException("User account is not linked to a company.");
             }
 
+            var permissions = await GetPermissionsForRolesAsync(dbContext, roles, cancellationToken);
+
             return Results.Ok(CreateSessionResponse(
                 user.Id,
                 user.Email,
                 user.DisplayName,
                 user.CompanyId,
                 roles,
+                permissions,
                 jwtTokenService,
                 jwtOptions.Value,
                 httpContext));
@@ -126,14 +132,16 @@ public static class AuthEndpoints
             DevTokenRequest request,
             IJwtTokenService jwtTokenService,
             IOptions<JwtOptions> jwtOptions,
+            PanoLoggerDbContext dbContext,
             HttpContext httpContext) =>
         {
             var userId = request.UserId ?? Guid.NewGuid();
             var email = string.IsNullOrWhiteSpace(request.Email) ? "demo@panologger.local" : request.Email;
             var displayName = email.Split('@', 2)[0];
             var roles = NormalizeRoles(request.Roles);
+            var permissions = AppPermissions.ForRoles(roles);
 
-            return Results.Ok(CreateSessionResponse(userId, email, displayName, null, roles, jwtTokenService, jwtOptions.Value, httpContext));
+            return Results.Ok(CreateSessionResponse(userId, email, displayName, null, roles, permissions, jwtTokenService, jwtOptions.Value, httpContext));
         })
         .WithName("CreateDevelopmentToken");
 
@@ -169,14 +177,18 @@ public static class AuthEndpoints
         .RequireAuthorization()
         .WithName("GetCurrentUser");
 
-        group.MapGet("/permissions", (ClaimsPrincipal user) =>
+        group.MapGet("/permissions", async (
+            ClaimsPrincipal user,
+            PanoLoggerDbContext dbContext,
+            CancellationToken cancellationToken) =>
         {
-            var roles = user.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray();
+            var roles = await GetUserRolesAsync(user, dbContext, cancellationToken);
+            var permissions = await GetPermissionsForRolesAsync(dbContext, roles, cancellationToken);
 
             return Results.Ok(new
             {
                 roles,
-                permissions = AppPermissions.ForRoles(roles),
+                permissions,
             });
         })
         .RequireAuthorization()
@@ -191,11 +203,12 @@ public static class AuthEndpoints
         string displayName,
         Guid? companyId,
         string[] roles,
+        IReadOnlyCollection<string> permissions,
         IJwtTokenService jwtTokenService,
         JwtOptions jwtOptions,
         HttpContext httpContext)
     {
-        var accessToken = jwtTokenService.CreateAccessToken(userId, email, companyId, roles);
+        var accessToken = jwtTokenService.CreateAccessToken(userId, email, companyId, roles, permissions);
         httpContext.Response.Cookies.Append(
             JwtAuthenticationExtensions.AccessTokenCookieName,
             accessToken,
@@ -210,8 +223,43 @@ public static class AuthEndpoints
                 displayName,
                 companyId,
                 roles,
+                permissions,
             },
         };
+    }
+
+    private static async Task<string[]> GetUserRolesAsync(
+        ClaimsPrincipal principal,
+        PanoLoggerDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var userId = Guid.Parse(principal.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var roles = await (
+            from userRole in dbContext.UserRoles.AsNoTracking()
+            join role in dbContext.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+            where userRole.UserId == userId
+            orderby role.Name
+            select role.Name
+        ).ToArrayAsync(cancellationToken);
+
+        return roles.Length == 0
+            ? principal.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray()
+            : roles;
+    }
+
+    private static async Task<string[]> GetPermissionsForRolesAsync(
+        PanoLoggerDbContext dbContext,
+        string[] roles,
+        CancellationToken cancellationToken)
+    {
+        var permissions = await (
+            from role in dbContext.Roles.AsNoTracking()
+            join rolePermission in dbContext.RolePermissions.AsNoTracking() on role.Id equals rolePermission.RoleId
+            where roles.Contains(role.Name)
+            select rolePermission.Permission
+        ).Distinct().Order().ToArrayAsync(cancellationToken);
+
+        return permissions.Length == 0 ? AppPermissions.ForRoles(roles).ToArray() : permissions;
     }
 
     private static CookieOptions CreateCookieOptions(HttpContext httpContext, DateTimeOffset? expires = null)

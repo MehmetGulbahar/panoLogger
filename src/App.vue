@@ -1,5 +1,6 @@
 <template>
   <Toast position="top-right" />
+  <ConfirmPopup />
   <RouterView v-if="isPublicRoute" />
   <AppShell v-else>
     <RouterView />
@@ -9,6 +10,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
+import ConfirmPopup from 'primevue/confirmpopup';
 import Toast from 'primevue/toast';
 import AppShell from './layouts/AppShell.vue';
 
@@ -64,5 +66,42 @@ const isPublicRoute = computed(() => route.meta.layout === 'public');
   width: 1.7rem;
   height: 1.7rem;
   color: var(--app-text-muted);
+}
+
+.p-confirm-popup {
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-bg);
+  box-shadow: var(--app-shadow);
+  color: var(--app-text);
+}
+
+.p-confirm-popup .p-confirm-popup-content {
+  gap: 0.65rem;
+  padding: 0.85rem 0.9rem 0.55rem;
+}
+
+.p-confirm-popup .p-confirm-popup-icon {
+  color: #b91c1c;
+  font-size: 1rem;
+}
+
+.p-confirm-popup .p-confirm-popup-message {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.p-confirm-popup .p-confirm-popup-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  padding: 0 0.75rem 0.75rem;
+}
+
+.p-confirm-popup .p-button {
+  min-height: 2rem;
+  border-radius: 7px;
+  padding: 0 0.7rem;
+  font-size: 0.78rem;
 }
 </style>

@@ -1,5 +1,5 @@
 import 'vue-router';
-import type { UserRole } from '@/types';
+import type { Permission, UserRole } from '@/types';
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -7,5 +7,6 @@ declare module 'vue-router' {
     layout?: 'public';
     requiresAuth?: boolean;
     requiredRoles?: UserRole[];
+    requiredPermissions?: Permission[];
   }
 }

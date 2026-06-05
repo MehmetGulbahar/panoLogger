@@ -34,6 +34,7 @@ public static class PublicPanelEndpoints
                     file.FileName,
                     file.ContentType,
                     file.SizeBytes,
+                    $"/api/public/panels/{panel.PanelCode}/files/{file.Id}/view",
                     $"/api/public/panels/{panel.PanelCode}/files/{file.Id}/download"))
                 .ToList();
 
@@ -48,6 +49,17 @@ public static class PublicPanelEndpoints
         })
         .WithName("GetPublicPanelByCode");
 
+        group.MapGet("/panels/{panelCode}/files/{fileId:guid}/view", async (
+            string panelCode,
+            Guid fileId,
+            PanoLoggerDbContext dbContext,
+            IFileStorageService fileStorageService,
+            CancellationToken cancellationToken) =>
+        {
+            return await GetPublicPanelFileAsync(panelCode, fileId, forceDownload: false, dbContext, fileStorageService, cancellationToken);
+        })
+        .WithName("ViewPublicPanelFile");
+
         group.MapGet("/panels/{panelCode}/files/{fileId:guid}/download", async (
             string panelCode,
             Guid fileId,
@@ -55,16 +67,7 @@ public static class PublicPanelEndpoints
             IFileStorageService fileStorageService,
             CancellationToken cancellationToken) =>
         {
-            var file = await (
-                from panel in dbContext.Panels.AsNoTracking()
-                join panelFile in dbContext.PanelFiles.AsNoTracking() on panel.Id equals panelFile.PanelId
-                where panel.Code == panelCode && panelFile.Id == fileId
-                select new { panelFile.StoragePath }
-            ).FirstOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException($"File '{fileId}' was not found for panel '{panelCode}'.");
-
-            var signedUrl = await fileStorageService.CreateSignedUrlAsync(file.StoragePath, cancellationToken: cancellationToken);
-            return Results.Redirect(signedUrl.SignedUrl);
+            return await GetPublicPanelFileAsync(panelCode, fileId, forceDownload: true, dbContext, fileStorageService, cancellationToken);
         })
         .WithName("DownloadPublicPanelFile");
 
@@ -111,6 +114,31 @@ public static class PublicPanelEndpoints
                 panelResult.ProjectName,
                 new PublicPanelDocumentsResponse(0, 0, 0, Array.Empty<PublicPanelFileResponse>()));
     }
+
+    private static async Task<IResult> GetPublicPanelFileAsync(
+        string panelCode,
+        Guid fileId,
+        bool forceDownload,
+        PanoLoggerDbContext dbContext,
+        IFileStorageService fileStorageService,
+        CancellationToken cancellationToken)
+    {
+        var file = await (
+            from panel in dbContext.Panels.AsNoTracking()
+            join panelFile in dbContext.PanelFiles.AsNoTracking() on panel.Id equals panelFile.PanelId
+            where panel.Code == panelCode && panelFile.Id == fileId
+            select new { panelFile.StoragePath, panelFile.FileName, panelFile.ContentType }
+        ).FirstOrDefaultAsync(cancellationToken)
+        ?? throw new NotFoundException($"File '{fileId}' was not found for panel '{panelCode}'.");
+
+        var storedFile = await fileStorageService.DownloadAsync(file.StoragePath, cancellationToken);
+
+        return Results.File(
+            storedFile.Content,
+            file.ContentType,
+            fileDownloadName: forceDownload ? file.FileName : null,
+            enableRangeProcessing: true);
+    }
 }
 
 public sealed record PublicPanelResponse(
@@ -138,4 +166,5 @@ public sealed record PublicPanelFileResponse(
     string FileName,
     string ContentType,
     long SizeBytes,
+    string ViewUrl,
     string DownloadUrl);

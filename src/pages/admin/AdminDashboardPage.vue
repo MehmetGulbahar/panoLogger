@@ -85,6 +85,16 @@
                 <button class="icon-button" type="button" title="Duzenle" aria-label="Duzenle" @click="selectUser(user)">
                   <i class="pi pi-pencil" aria-hidden="true"></i>
                 </button>
+                <button
+                  class="icon-button danger-icon-button"
+                  type="button"
+                  title="Kullanıcıyı Sil"
+                  aria-label="Kullanıcıyı Sil"
+                  :disabled="isDeletingUser || user.id === authStore.user?.id"
+                  @click="confirmDeleteUser($event, user)"
+                >
+                  <i :class="isDeletingUser ? 'pi pi-spin pi-spinner' : 'pi pi-trash'" aria-hidden="true"></i>
+                </button>
               </td>
             </tr>
           </tbody>
@@ -236,6 +246,7 @@ import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
 import { apiClient } from '@/api/client';
 import { apiEndpoints } from '@/api/endpoints';
+import { useAuthStore } from '@/stores';
 import type {
   AdminCompanyOption,
   AdminOverview,
@@ -248,6 +259,7 @@ import type {
 
 const toast = useToast();
 const confirm = useConfirm();
+const authStore = useAuthStore();
 const overview = ref<AdminOverview | null>(null);
 const users = ref<AdminUser[]>([]);
 const companies = ref<AdminCompanyOption[]>([]);
@@ -260,6 +272,7 @@ const statusFilter = ref<'all' | 'active' | 'inactive'>('all');
 const errorMessage = ref('');
 const isLoading = ref(false);
 const isSavingUser = ref(false);
+const isDeletingUser = ref(false);
 const isSavingRole = ref(false);
 const isDeletingRole = ref(false);
 
@@ -280,9 +293,10 @@ const newRoleForm = reactive({
   description: '',
 });
 
-const isBusy = computed(() => isLoading.value || isSavingUser.value || isSavingRole.value || isDeletingRole.value);
+const isBusy = computed(() => isLoading.value || isSavingUser.value || isDeletingUser.value || isSavingRole.value || isDeletingRole.value);
 const loadingLabel = computed(() => {
   if (isSavingUser.value) return 'Kullanıcı güncelleniyor...';
+  if (isDeletingUser.value) return 'Kullanıcı siliniyor...';
   if (isSavingRole.value) return 'Rol izinleri kaydediliyor...';
   if (isDeletingRole.value) return 'Rol siliniyor...';
   return 'Admin verileri yükleniyor...';
@@ -392,6 +406,40 @@ async function saveSelectedUser(): Promise<void> {
   }
 }
 
+function confirmDeleteUser(event: MouseEvent, user: AdminUser): void {
+  if (user.id === authStore.user?.id) return;
+
+  confirm.require({
+    target: event.currentTarget as HTMLElement,
+    message: `${user.displayName} kullanıcısını silmek istiyor musunuz?`,
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: 'Kullanıcıyı Sil',
+    rejectLabel: 'Vazgeç',
+    acceptClass: 'p-button-danger',
+    accept: () => {
+      void deleteUser(user);
+    },
+  });
+}
+
+async function deleteUser(user: AdminUser): Promise<void> {
+  if (user.id === authStore.user?.id) return;
+  isDeletingUser.value = true;
+  errorMessage.value = '';
+  try {
+    await apiClient.delete(`${apiEndpoints.admin}/users/${user.id}`);
+    if (selectedUser.value?.id === user.id) {
+      clearUserSelection();
+    }
+    showSuccess('Kullanıcı silindi', `${user.displayName} sistemden kaldirildi.`);
+    await loadAdminData();
+  } catch (error: any) {
+    handleRequestError(error, 'Kullanıcı silinemedi.');
+  } finally {
+    isDeletingUser.value = false;
+  }
+}
+
 async function createRole(): Promise<void> {
   isSavingRole.value = true;
   errorMessage.value = '';
@@ -423,7 +471,7 @@ async function saveSelectedRole(): Promise<void> {
       description: roleForm.description,
       permissions: roleForm.permissions,
     });
-    showSuccess('Rol guncellendi', 'Izinler kaydedildi. Etkilenen kullanicilar yeniden giris yapmali.');
+    showSuccess('Rol güncellendi.', 'İzinler kaydedildi. Etkilenen kullanıcılar yeniden giriş yapmalı.');
     await loadAdminData();
   } catch (error: any) {
     handleRequestError(error, 'Rol guncellenemedi.');
@@ -530,10 +578,13 @@ function formatDate(value: string): string {
 .status-pill { display:inline-flex !important; align-items:center; width:max-content; min-height:1.45rem; border-radius:999px; padding:0 0.5rem; font-size:0.72rem !important; font-weight:700 }
 .status-pill.is-active { background:#ecfdf5; color:#047857 }
 .status-pill.is-inactive { background:#fef2f2; color:#b91c1c }
-.actions-cell { text-align:right }
+.actions-cell { text-align:right; white-space:nowrap }
 .icon-button { width:1.9rem; height:1.9rem; border:0; border-radius:7px; display:inline-grid; place-items:center; background:transparent; color:var(--app-text-muted); cursor:pointer }
-.icon-button:hover { background:var(--app-surface-alt); color:var(--app-primary) }
+.icon-button:hover:not(:disabled) { background:var(--app-surface-alt); color:var(--app-primary) }
+.icon-button:disabled { opacity:0.5; cursor:not-allowed }
 .icon-button .pi { font-size:0.82rem }
+.danger-icon-button { color:#b91c1c }
+.danger-icon-button:hover:not(:disabled) { background:#fef2f2; color:#991b1b }
 .danger-button { min-height:2.2rem; display:inline-flex; align-items:center; justify-content:center; gap:0.4rem; border:1px solid #fecaca; border-radius:7px; padding:0 0.7rem; background:#fef2f2; color:#b91c1c; font-size:0.8125rem; font-weight:700; cursor:pointer }
 .danger-button:hover:not(:disabled) { background:#fee2e2; color:#991b1b }
 .danger-button:disabled { opacity:0.65; cursor:not-allowed }

@@ -326,6 +326,52 @@ public static class AdminEndpoints
         })
         .WithName("UpdateAdminUser");
 
+        group.MapDelete("/users/{userId:guid}", async (
+            Guid userId,
+            ClaimsPrincipal principal,
+            PanoLoggerDbContext dbContext,
+            CancellationToken cancellationToken) =>
+        {
+            var currentUserId = Guid.Parse(principal.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            if (userId == currentUserId)
+            {
+                throw new ValidationException("You cannot delete your own SuperAdmin account.");
+            }
+
+            var user = await dbContext.Users
+                .AsNoTracking()
+                .Where(item => item.Id == userId)
+                .Select(item => new { item.Id, item.Email, item.DisplayName })
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? throw new NotFoundException("User was not found.");
+
+            var superAdminRoleId = await dbContext.Roles
+                .Where(role => role.Name == AppRoles.SuperAdmin)
+                .Select(role => role.Id)
+                .SingleAsync(cancellationToken);
+
+            var isSuperAdmin = await dbContext.UserRoles
+                .AnyAsync(item => item.UserId == userId && item.RoleId == superAdminRoleId, cancellationToken);
+
+            if (isSuperAdmin)
+            {
+                var otherSuperAdmins = await dbContext.UserRoles
+                    .CountAsync(item => item.UserId != userId && item.RoleId == superAdminRoleId, cancellationToken);
+
+                if (otherSuperAdmins == 0)
+                {
+                    throw new ValidationException("At least one SuperAdmin account must remain in the system.");
+                }
+            }
+
+            await dbContext.Users
+                .Where(item => item.Id == user.Id)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            return Results.NoContent();
+        })
+        .WithName("DeleteAdminUser");
+
         return app;
     }
 

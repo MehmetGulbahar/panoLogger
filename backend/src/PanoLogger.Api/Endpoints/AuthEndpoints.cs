@@ -199,11 +199,15 @@ public static class AuthEndpoints
 
     private static CookieOptions CreateCookieOptions(HttpContext httpContext, DateTimeOffset? expires = null)
     {
+        var isProduction = !httpContext.RequestServices
+            .GetRequiredService<IHostEnvironment>()
+            .IsDevelopment();
+
         return new CookieOptions
         {
             HttpOnly = true,
-            Secure = httpContext.Request.IsHttps,
-            SameSite = SameSiteMode.Lax,
+            Secure = isProduction || httpContext.Request.IsHttps,
+            SameSite = isProduction ? SameSiteMode.None : SameSiteMode.Lax,
             Path = "/",
             Expires = expires,
         };

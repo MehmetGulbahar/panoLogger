@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.HttpOverrides;
 using PanoLogger.Api.Endpoints;
 using PanoLogger.Api.Authentication;
 using PanoLogger.Api.Authorization;
@@ -48,9 +49,16 @@ builder.Services.AddCors(options =>
     });
 });
 builder.Services.AddProblemDetails();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseSerilogRequestLogging();
 

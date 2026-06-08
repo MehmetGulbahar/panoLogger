@@ -12,14 +12,14 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.ToTable("users");
         builder.HasKey(user => user.Id);
 
-        builder.Property(user => user.Email).HasMaxLength(254).IsRequired();
+        builder.Property(user => user.Username).HasMaxLength(80).IsRequired();
         builder.Property(user => user.CompanyId);
         builder.Property(user => user.DisplayName).HasMaxLength(160).IsRequired();
         builder.Property(user => user.PasswordHash).HasMaxLength(500).IsRequired();
         builder.Property(user => user.IsActive).IsRequired();
         builder.Property(user => user.CreatedAtUtc).IsRequired();
 
-        builder.HasIndex(user => user.Email).IsUnique();
+        builder.HasIndex(user => user.Username).IsUnique();
         builder.HasIndex(user => user.CompanyId);
 
         builder.HasOne<Company>()

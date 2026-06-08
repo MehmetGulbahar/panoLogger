@@ -25,9 +25,9 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = session.user;
   }
 
-  async function loginDev(email: string, rolesToRequest: UserRole[] = ['SuperAdmin']): Promise<void> {
+  async function loginDev(username: string, rolesToRequest: UserRole[] = ['SuperAdmin']): Promise<void> {
     const { data } = await apiClient.post<AuthSessionResponse>(`${apiEndpoints.auth}/dev-token`, {
-      email,
+      username,
       roles: rolesToRequest,
     });
 
@@ -35,22 +35,10 @@ export const useAuthStore = defineStore('auth', () => {
     await loadPermissions();
   }
 
-  async function login(email: string, password: string): Promise<void> {
+  async function login(username: string, password: string): Promise<void> {
     const { data } = await apiClient.post<AuthSessionResponse>(`${apiEndpoints.auth}/login`, {
-      email,
+      username,
       password,
-    });
-
-    setSession(data);
-    await loadPermissions();
-  }
-
-  async function register(displayName: string, email: string, password: string, companyCode: string): Promise<void> {
-    const { data } = await apiClient.post<AuthSessionResponse>(`${apiEndpoints.auth}/register`, {
-      displayName,
-      email,
-      password,
-      companyCode,
     });
 
     setSession(data);
@@ -123,7 +111,6 @@ export const useAuthStore = defineStore('auth', () => {
     isHydrated,
     login,
     loginDev,
-    register,
     hydrate,
     loadPermissions,
     hasAnyRole,

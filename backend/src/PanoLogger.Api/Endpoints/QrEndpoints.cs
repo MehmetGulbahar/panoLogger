@@ -25,6 +25,7 @@ public static class QrEndpoints
             IPanelCodeService panelCodeService,
             IQrCodeService qrCodeService,
             IOptions<QrCodeOptions> options,
+            HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             var code = await CreateUniquePanelCodeAsync(
@@ -33,7 +34,7 @@ public static class QrEndpoints
                 request.Prefix ?? options.Value.PanelCodePrefix,
                 cancellationToken);
 
-            var publicUrl = BuildPublicPanelUrl(options.Value, code);
+            var publicUrl = BuildPublicPanelUrl(options.Value, code, httpContext);
             return Results.Ok(new GeneratedQrCodeResponse(code, publicUrl, qrCodeService.CreateSvg(publicUrl)));
         })
         .WithName("CreateUniquePanelCode");
@@ -44,6 +45,7 @@ public static class QrEndpoints
             PanoLoggerDbContext dbContext,
             IQrCodeService qrCodeService,
             IOptions<QrCodeOptions> options,
+            HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             var panel = await dbContext.Panels
@@ -58,7 +60,7 @@ public static class QrEndpoints
             var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
             tenant.EnsureCompany(panel.CompanyId);
 
-            var publicUrl = BuildPublicPanelUrl(options.Value, panel.Code);
+            var publicUrl = BuildPublicPanelUrl(options.Value, panel.Code, httpContext);
             return Results.Ok(new QrCodeResponse(panel.Id, panel.Code, panel.Name, publicUrl, qrCodeService.CreateSvg(publicUrl)));
         })
         .WithName("GetPanelQrCode");
@@ -69,6 +71,7 @@ public static class QrEndpoints
             PanoLoggerDbContext dbContext,
             IQrCodeService qrCodeService,
             IOptions<QrCodeOptions> options,
+            HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             var panel = await dbContext.Panels
@@ -83,7 +86,7 @@ public static class QrEndpoints
             var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
             tenant.EnsureCompany(panel.CompanyId);
 
-            var publicUrl = BuildPublicPanelUrl(options.Value, panel.Code);
+            var publicUrl = BuildPublicPanelUrl(options.Value, panel.Code, httpContext);
             var bytes = Encoding.UTF8.GetBytes(qrCodeService.CreateSvg(publicUrl));
 
             return Results.File(bytes, "image/svg+xml", $"{panel.Code}-qr.svg");
@@ -96,6 +99,7 @@ public static class QrEndpoints
             PanoLoggerDbContext dbContext,
             IQrCodeService qrCodeService,
             IOptions<QrCodeOptions> options,
+            HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             var panel = await GetPrintablePanelAsync(dbContext, panelId, cancellationToken)
@@ -103,7 +107,7 @@ public static class QrEndpoints
             var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
             tenant.EnsureCompany(panel.CompanyId);
 
-            var publicUrl = BuildPublicPanelUrl(options.Value, panel.Code);
+            var publicUrl = BuildPublicPanelUrl(options.Value, panel.Code, httpContext);
             var html = BuildPrintHtml(panel.Name, panel.Code, panel.FacilityName, publicUrl, qrCodeService.CreateSvg(publicUrl));
 
             return Results.Content(html, "text/html; charset=utf-8");
@@ -117,6 +121,7 @@ public static class QrEndpoints
             IPanelCodeService panelCodeService,
             IQrCodeService qrCodeService,
             IOptions<QrCodeOptions> options,
+            HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             var companyId = await (
@@ -144,7 +149,7 @@ public static class QrEndpoints
                     setters => setters.SetProperty(item => item.Code, code),
                     cancellationToken);
 
-            var publicUrl = BuildPublicPanelUrl(options.Value, code);
+            var publicUrl = BuildPublicPanelUrl(options.Value, code, httpContext);
             return Results.Ok(new QrCodeResponse(panelId, code, "", publicUrl, qrCodeService.CreateSvg(publicUrl)));
         })
         .WithName("RegeneratePanelQrCode");
@@ -172,9 +177,34 @@ public static class QrEndpoints
         throw new InvalidOperationException("Could not generate a unique panel code.");
     }
 
-    private static string BuildPublicPanelUrl(QrCodeOptions options, string panelCode)
+    private static string BuildPublicPanelUrl(QrCodeOptions options, string panelCode, HttpContext httpContext)
     {
-        return $"{options.PublicAppBaseUrl.TrimEnd('/')}/p/{Uri.EscapeDataString(panelCode)}";
+        var publicAppBaseUrl = ResolvePublicAppBaseUrl(options, httpContext);
+        return $"{publicAppBaseUrl.TrimEnd('/')}/p/{Uri.EscapeDataString(panelCode)}";
+    }
+
+    private static string ResolvePublicAppBaseUrl(QrCodeOptions options, HttpContext httpContext)
+    {
+        var origin = httpContext.Request.Headers.Origin.FirstOrDefault();
+        if (IsHttpOrigin(origin))
+        {
+            return origin!;
+        }
+
+        var referer = httpContext.Request.Headers.Referer.FirstOrDefault();
+        if (Uri.TryCreate(referer, UriKind.Absolute, out var refererUri)
+            && (refererUri.Scheme == Uri.UriSchemeHttp || refererUri.Scheme == Uri.UriSchemeHttps))
+        {
+            return $"{refererUri.Scheme}://{refererUri.Authority}";
+        }
+
+        return options.PublicAppBaseUrl;
+    }
+
+    private static bool IsHttpOrigin(string? origin)
+    {
+        return Uri.TryCreate(origin, UriKind.Absolute, out var originUri)
+            && (originUri.Scheme == Uri.UriSchemeHttp || originUri.Scheme == Uri.UriSchemeHttps);
     }
 
     private static Task<PrintablePanel?> GetPrintablePanelAsync(

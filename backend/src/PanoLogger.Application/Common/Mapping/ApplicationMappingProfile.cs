@@ -23,4 +23,4 @@ public sealed record CompanyReadModel(Guid Id, string Name, string ProjectName, 
 public sealed record FacilityReadModel(Guid Id, Guid CompanyId, string Name, string City, string Address);
 public sealed record PanelReadModel(Guid Id, Guid FacilityId, string Code, string Name, string Description);
 public sealed record PanelFileReadModel(Guid Id, Guid PanelId, string Category, string FileName, string StoragePath, string ContentType, long SizeBytes);
-public sealed record UserReadModel(Guid Id, string Email, string DisplayName, bool IsActive);
+public sealed record UserReadModel(Guid Id, string Username, string DisplayName, bool IsActive);

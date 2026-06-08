@@ -1,5 +1,15 @@
 export function getApiBaseUrl(): string {
-  return import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5195/api';
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+
+  if (typeof window !== 'undefined') {
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    return `${protocol}//${hostname}:5195/api`;
+  }
+
+  return 'http://localhost:5195/api';
 }
 
 export function getAppName(): string {

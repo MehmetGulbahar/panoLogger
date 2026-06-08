@@ -18,28 +18,18 @@ export const useAuthStore = defineStore('auth', () => {
         resetTenantScopedStores();
         user.value = session.user;
     }
-    async function loginDev(email, rolesToRequest = ['SuperAdmin']) {
+    async function loginDev(username, rolesToRequest = ['SuperAdmin']) {
         const { data } = await apiClient.post(`${apiEndpoints.auth}/dev-token`, {
-            email,
+            username,
             roles: rolesToRequest,
         });
         setSession(data);
         await loadPermissions();
     }
-    async function login(email, password) {
+    async function login(username, password) {
         const { data } = await apiClient.post(`${apiEndpoints.auth}/login`, {
-            email,
+            username,
             password,
-        });
-        setSession(data);
-        await loadPermissions();
-    }
-    async function register(displayName, email, password, companyCode) {
-        const { data } = await apiClient.post(`${apiEndpoints.auth}/register`, {
-            displayName,
-            email,
-            password,
-            companyCode,
         });
         setSession(data);
         await loadPermissions();
@@ -102,7 +92,6 @@ export const useAuthStore = defineStore('auth', () => {
         isHydrated,
         login,
         loginDev,
-        register,
         hydrate,
         loadPermissions,
         hasAnyRole,

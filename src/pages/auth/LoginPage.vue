@@ -1,186 +1,99 @@
 <template>
   <main class="login-page">
-    <section class="login-shell" aria-labelledby="auth-title">
-      <header class="login-header">
-        <div class="login-header__mark">
-          <i class="pi pi-bolt" aria-hidden="true"></i>
-        </div>
-        <div>
-          <p class="login-eyebrow">PanelDocs</p>
-          <h1 id="auth-title">{{ isRegisterMode ? 'Hesap Oluştur' : 'Giriş Yap' }}</h1>
-          <p>Pano dokümantasyon paneli</p>
-        </div>
-      </header>
+    <section class="login-layout" aria-labelledby="auth-title">
+      <ElectricalPanelScene class="login-visual" />
 
-      <div class="auth-mode" role="tablist" aria-label="Kimlik doğrulama modu">
-        <button type="button" role="tab" :aria-selected="!isRegisterMode" :class="{ active: !isRegisterMode }" @click="setMode('login')">
-          Giriş
-        </button>
-        <button type="button" role="tab" :aria-selected="isRegisterMode" :class="{ active: isRegisterMode }" @click="setMode('register')">
-          Kayıt Ol
-        </button>
-      </div>
+      <section class="login-shell">
+        <header class="login-header">
+          <div class="login-header__mark">
+            <i class="pi pi-bolt" aria-hidden="true"></i>
+          </div>
+          <div>
+            <p class="login-eyebrow">PanelDocs</p>
+            <h1 id="auth-title">{{ 'Giriş Yap' }}</h1>
+            <p>Pano dokümantasyon paneli</p>
+          </div>
+        </header>
 
-      <form class="login-card" @submit.prevent="onSubmit">
-        <label v-if="isRegisterMode" class="field">
-          <span>Ad Soyad</span>
-          <span class="input-wrap">
-            <i class="pi pi-user" aria-hidden="true"></i>
-            <input v-model="displayName" type="text" autocomplete="name" required />
-          </span>
-        </label>
-
-        <label class="field">
-          <span>E-posta</span>
-          <span class="input-wrap">
-            <i class="pi pi-envelope" aria-hidden="true"></i>
-            <input v-model="email" type="email" autocomplete="email" required />
-          </span>
-        </label>
-
-        <label v-if="isRegisterMode" class="field">
-          <span>Şirket Kodu</span>
-          <span class="input-wrap">
-            <i class="pi pi-id-card" aria-hidden="true"></i>
-            <input v-model="companyCode" type="text" autocomplete="organization" required placeholder="Örn. AVM-001" />
-          </span>
-        </label>
-
-        <label class="field">
-          <span>Şifre</span>
-          <span class="input-wrap">
-            <i class="pi pi-lock" aria-hidden="true"></i>
-            <input v-model="password" :type="showPassword ? 'text' : 'password'" :autocomplete="isRegisterMode ? 'new-password' : 'current-password'" required />
-            <button class="icon-button" type="button" :aria-label="showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'" @click="showPassword = !showPassword">
-              <i :class="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'" aria-hidden="true"></i>
-            </button>
-          </span>
-        </label>
-
-        <label v-if="isRegisterMode" class="field">
-          <span>Şifre Tekrar</span>
-          <span class="input-wrap">
-            <i class="pi pi-lock" aria-hidden="true"></i>
-            <input v-model="confirmPassword" :type="showPassword ? 'text' : 'password'" autocomplete="new-password" required />
-          </span>
-        </label>
-
-        <div v-if="!isRegisterMode" class="login-options">
-          <label class="remember">
-            <input v-model="rememberMe" type="checkbox" />
-            <span>Beni hatırla</span>
+        <form class="login-card" @submit.prevent="onSubmit">
+          <label class="field">
+            <span>Kullanıcı adı</span>
+            <span class="input-wrap">
+              <i class="pi pi-user" aria-hidden="true"></i>
+              <input v-model="username" type="text" autocomplete="username" required />
+            </span>
           </label>
-          <a href="#" @click.prevent>Şifremi unuttum</a>
-        </div>
 
-        <p v-if="errorMessage" class="login-error">{{ errorMessage }}</p>
+          <label class="field">
+            <span>Şifre</span>
+            <span class="input-wrap">
+              <i class="pi pi-lock" aria-hidden="true"></i>
+              <input v-model="password" :type="showPassword ? 'text' : 'password'" autocomplete="current-password" required />
+              <button class="icon-button" type="button" :aria-label="showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'" @click="showPassword = !showPassword">
+                <i :class="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'" aria-hidden="true"></i>
+              </button>
+            </span>
+          </label>
 
-        <UiButton class="login-submit" type="submit" variant="primary" :disabled="isSubmitting">
-          <i :class="isRegisterMode ? 'pi pi-user-plus' : 'pi pi-sign-in'" aria-hidden="true"></i>
-          {{ submitLabel }}
-        </UiButton>
-      </form>
+          <div class="login-options">
+            <label class="remember">
+              <input v-model="rememberMe" type="checkbox" />
+              <span>Beni hatırla</span>
+            </label>
+            <a href="#" @click.prevent>Şifremi unuttum</a>
+          </div>
 
-      <footer class="login-footer">
-        <span>{{ isRegisterMode ? 'Zaten hesabınız var mı?' : 'Henüz hesabınız yok mu?' }}</span>
-        <button type="button" @click="setMode(isRegisterMode ? 'login' : 'register')">
-          {{ isRegisterMode ? 'Giriş Yap' : 'Kayıt Ol' }}
-        </button>
-      </footer>
+          <p v-if="errorMessage" class="login-error">{{ errorMessage }}</p>
+
+          <UiButton class="login-submit" type="submit" variant="primary" :disabled="isSubmitting">
+            <i class="pi pi-sign-in" aria-hidden="true"></i>
+            {{ isSubmitting ? 'Giriş yapılıyor' : 'Giriş Yap' }}
+          </UiButton>
+        </form>
+      </section>
     </section>
   </main>
 </template>
 
 <script setup lang="ts">
 import axios from 'axios';
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useRoute, useRouter } from 'vue-router';
+import ElectricalPanelScene from '@/components/auth/ElectricalPanelScene.vue';
 import { routeNames } from '@/constants/routes';
 import { useAuthStore } from '@/stores';
-
-type AuthMode = 'login' | 'register';
 
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 const toast = useToast();
 
-const mode = ref<AuthMode>('login');
-const displayName = ref('');
-const email = ref('');
-const companyCode = ref('');
+const username = ref('');
 const password = ref('');
-const confirmPassword = ref('');
 const rememberMe = ref(true);
 const showPassword = ref(false);
 const isSubmitting = ref(false);
 const errorMessage = ref('');
 
-const isRegisterMode = computed(() => mode.value === 'register');
-const submitLabel = computed(() => {
-  if (isSubmitting.value) {
-    return isRegisterMode.value ? 'Hesap oluşturuluyor' : 'Giriş yapılıyor';
-  }
-
-  return isRegisterMode.value ? 'Hesap Oluştur' : 'Giriş Yap';
-});
-
-function setMode(nextMode: AuthMode): void {
-  mode.value = nextMode;
-  errorMessage.value = '';
-  password.value = '';
-  confirmPassword.value = '';
-}
-
 async function onSubmit(): Promise<void> {
   errorMessage.value = '';
 
-  if (!email.value.trim() || !password.value.trim()) {
-    errorMessage.value = 'E-posta ve şifre zorunludur.';
-    return;
-  }
-
-  if (isRegisterMode.value && displayName.value.trim().length < 2) {
-    errorMessage.value = 'Ad soyad en az 2 karakter olmalıdır.';
-    return;
-  }
-
-  if (isRegisterMode.value && !companyCode.value.trim()) {
-    errorMessage.value = 'Şirket kodu zorunludur.';
-    return;
-  }
-
-  if (isRegisterMode.value && password.value.length < 8) {
-    errorMessage.value = 'Şifre en az 8 karakter olmalıdır.';
-    return;
-  }
-
-  if (isRegisterMode.value && password.value !== confirmPassword.value) {
-    errorMessage.value = 'Şifreler eşleşmiyor.';
+  if (!username.value.trim() || !password.value.trim()) {
+    errorMessage.value = 'Kullanıcı adı ve şifre zorunludur.';
     return;
   }
 
   isSubmitting.value = true;
 
   try {
-    if (isRegisterMode.value) {
-      await authStore.register(displayName.value.trim(), email.value.trim(), password.value, companyCode.value.trim());
-      toast.add({
-        severity: 'success',
-        summary: 'Hesap oluşturuldu',
-        detail: 'Kaydınız tamamlandı. PanoVeri ortamına hoş geldiniz.',
-        life: 3500,
-      });
-    } else {
-      await authStore.login(email.value.trim(), password.value);
-      toast.add({
-        severity: 'success',
-        summary: 'Giriş başarılı',
-        detail: 'Hesabınıza güvenli şekilde giriş yaptınız.',
-        life: 3000,
-      });
-    }
+    await authStore.login(username.value.trim(), password.value);
+    toast.add({
+      severity: 'success',
+      summary: 'Giriş başarılı',
+      detail: 'Hesabınıza güvenli şekilde giriş yaptınız.',
+      life: 3000,
+    });
 
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : undefined;
     await router.push(redirect ?? { name: routeNames.dashboard });
@@ -189,9 +102,7 @@ async function onSubmit(): Promise<void> {
       ? error.response.data.detail
       : null;
 
-    errorMessage.value = backendMessage ?? (isRegisterMode.value
-      ? 'Hesap oluşturulamadı. E-posta daha önce kullanılmış olabilir.'
-      : 'Giriş yapılamadı. E-posta veya şifre hatalı.');
+    errorMessage.value = backendMessage ?? 'Giriş yapılamadı. Kullanıcı adı veya şifre hatalı.';
   } finally {
     isSubmitting.value = false;
   }
@@ -205,11 +116,24 @@ async function onSubmit(): Promise<void> {
   place-items: center;
   background: #f5f7fb;
   color: var(--app-text);
-  padding: 1rem;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.login-layout {
+  width: min(100%, 64rem);
+  min-height: min(37rem, calc(100vh - 4rem));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(21rem, 24rem);
+  align-items: center;
+  gap: clamp(1rem, 3vw, 2rem);
 }
 
 .login-shell {
-  width: min(100%, 24rem);
+  width: 100%;
+}
+
+.login-visual {
+  min-height: min(31rem, calc(100vh - 5rem));
 }
 
 .login-header {
@@ -258,34 +182,6 @@ async function onSubmit(): Promise<void> {
   line-height: 1.35;
 }
 
-.auth-mode {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.2rem;
-  margin-bottom: 0.65rem;
-  padding: 0.2rem;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
-  background: var(--app-surface-alt);
-}
-
-.auth-mode button {
-  min-height: 2rem;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--app-text-muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.auth-mode button.active {
-  background: var(--app-bg);
-  color: var(--app-primary);
-  box-shadow: var(--app-shadow);
-}
-
 .login-card {
   display: flex;
   flex-direction: column;
@@ -304,8 +200,7 @@ async function onSubmit(): Promise<void> {
 
 .field > span:first-child,
 .remember,
-.login-options a,
-.login-footer {
+.login-options a {
   font-size: 0.75rem;
   line-height: 1.25;
 }
@@ -386,8 +281,7 @@ async function onSubmit(): Promise<void> {
   accent-color: var(--app-primary);
 }
 
-.login-options a,
-.login-footer button {
+.login-options a {
   font-weight: 700;
 }
 
@@ -406,21 +300,31 @@ async function onSubmit(): Promise<void> {
   min-height: 2.35rem;
 }
 
-.login-footer {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 0.4rem;
-  margin-top: 0.85rem;
-  color: var(--app-text-muted);
+@media (max-width: 900px) {
+  .login-layout {
+    min-height: auto;
+    grid-template-columns: 1fr;
+    width: min(100%, 30rem);
+  }
+
+  .login-visual {
+    min-height: 19rem;
+    order: -1;
+  }
 }
 
-.login-footer button {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--app-primary);
-  cursor: pointer;
-  font-size: inherit;
+@media (max-width: 560px) {
+  .login-page {
+    place-items: start center;
+    padding: 0.85rem;
+  }
+
+  .login-layout {
+    gap: 0.8rem;
+  }
+
+  .login-visual {
+    min-height: 17rem;
+  }
 }
 </style>

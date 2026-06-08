@@ -1,8 +1,10 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using PanoLogger.Api.Authorization;
 using PanoLogger.Application.Common.Exceptions;
 using PanoLogger.Domain.Roles;
+using PanoLogger.Domain.Users;
 using PanoLogger.Infrastructure.Persistence;
 
 namespace PanoLogger.Api.Endpoints;
@@ -81,6 +83,72 @@ public static class AdminEndpoints
 
         group.MapGet("/permissions", () => Results.Ok(AppPermissions.All.Order(StringComparer.OrdinalIgnoreCase).ToArray()))
             .WithName("GetAdminAvailablePermissions");
+
+        group.MapPost("/users", async (
+            CreateAdminUserRequest request,
+            PanoLoggerDbContext dbContext,
+            IPasswordHasher<User> passwordHasher,
+            CancellationToken cancellationToken) =>
+        {
+            var username = NormalizeUsername(request.Username);
+            var displayName = NormalizeDisplayName(request.DisplayName);
+            var password = NormalizePassword(request.Password);
+            var roleEntities = await dbContext.Roles
+                .AsNoTracking()
+                .ToArrayAsync(cancellationToken);
+            var rolesByName = roleEntities.ToDictionary(role => role.Name, StringComparer.OrdinalIgnoreCase);
+            var requestedRoles = NormalizeUserRoles(request.Roles, rolesByName.Keys);
+
+            if (await dbContext.Users.AnyAsync(user => user.Username == username, cancellationToken))
+            {
+                throw new ValidationException("A user with this username already exists.");
+            }
+
+            if (request.CompanyId is not null
+                && !await dbContext.Companies.AnyAsync(company => company.Id == request.CompanyId, cancellationToken))
+            {
+                throw new ValidationException("Selected company was not found.");
+            }
+
+            if (!requestedRoles.Contains(AppRoles.SuperAdmin, StringComparer.OrdinalIgnoreCase) && request.CompanyId is null)
+            {
+                throw new ValidationException("Company is required for non-superadmin users.");
+            }
+
+            var user = new User
+            {
+                Username = username,
+                DisplayName = displayName,
+                CompanyId = request.CompanyId,
+                IsActive = true,
+            };
+            user.SetPasswordHash(passwordHasher.HashPassword(user, password));
+
+            dbContext.Users.Add(user);
+            foreach (var roleName in requestedRoles)
+            {
+                dbContext.UserRoles.Add(new()
+                {
+                    UserId = user.Id,
+                    RoleId = rolesByName[roleName].Id,
+                });
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            return Results.Created($"/api/admin/users/{user.Id}", new AdminUserResponse(
+                user.Id,
+                user.Username,
+                user.DisplayName,
+                user.CompanyId,
+                null,
+                null,
+                null,
+                user.IsActive,
+                requestedRoles,
+                user.CreatedAtUtc));
+        })
+        .WithName("CreateAdminUser");
 
         group.MapPost("/roles", async (
             CreateAdminRoleRequest request,
@@ -200,7 +268,7 @@ public static class AdminEndpoints
                 select new
                 {
                     user.Id,
-                    user.Email,
+                    user.Username,
                     user.DisplayName,
                     user.CompanyId,
                     CompanyName = company == null ? null : company.Name,
@@ -225,7 +293,7 @@ public static class AdminEndpoints
 
             return Results.Ok(users.Select(user => new AdminUserResponse(
                 user.Id,
-                user.Email,
+                user.Username,
                 user.DisplayName,
                 user.CompanyId,
                 user.CompanyName,
@@ -341,7 +409,7 @@ public static class AdminEndpoints
             var user = await dbContext.Users
                 .AsNoTracking()
                 .Where(item => item.Id == userId)
-                .Select(item => new { item.Id, item.Email, item.DisplayName })
+                .Select(item => new { item.Id, item.Username, item.DisplayName })
                 .FirstOrDefaultAsync(cancellationToken)
                 ?? throw new NotFoundException("User was not found.");
 
@@ -389,6 +457,32 @@ public static class AdminEndpoints
         }
 
         return normalized;
+    }
+
+    private static string NormalizeUsername(string username)
+    {
+        var normalized = username.Trim().ToLowerInvariant();
+        if (normalized.Length < 3 || normalized.Length > 80)
+        {
+            throw new ValidationException("Username must contain between 3 and 80 characters.");
+        }
+
+        if (!normalized.All(character => char.IsLetterOrDigit(character) || character is '.' or '-' or '_'))
+        {
+            throw new ValidationException("Username can contain only letters, numbers, dot, dash, and underscore.");
+        }
+
+        return normalized;
+    }
+
+    private static string NormalizePassword(string password)
+    {
+        if (string.IsNullOrWhiteSpace(password) || password.Length < 8 || password.Length > 128)
+        {
+            throw new ValidationException("Password must contain between 8 and 128 characters.");
+        }
+
+        return password;
     }
 
     private static string[] NormalizeUserRoles(string[] roles, IEnumerable<string> knownRoles)
@@ -499,7 +593,7 @@ public sealed record AdminRoleResponse(
 
 public sealed record AdminUserResponse(
     Guid Id,
-    string Email,
+    string Username,
     string DisplayName,
     Guid? CompanyId,
     string? CompanyName,
@@ -508,6 +602,13 @@ public sealed record AdminUserResponse(
     bool IsActive,
     string[] Roles,
     DateTimeOffset CreatedAtUtc);
+
+public sealed record CreateAdminUserRequest(
+    string Username,
+    string DisplayName,
+    string Password,
+    Guid? CompanyId,
+    string[] Roles);
 
 public sealed record UpdateAdminUserRequest(
     string DisplayName,

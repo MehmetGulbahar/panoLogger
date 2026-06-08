@@ -28,7 +28,7 @@ export interface AdminRole {
 
 export interface AdminUser {
   id: string;
-  email: string;
+  username: string;
   displayName: string;
   companyId?: string | null;
   companyName?: string | null;
@@ -37,6 +37,14 @@ export interface AdminUser {
   isActive: boolean;
   roles: UserRole[];
   createdAtUtc: string;
+}
+
+export interface CreateAdminUserRequest {
+  username: string;
+  displayName: string;
+  password: string;
+  companyId?: string | null;
+  roles: UserRole[];
 }
 
 export interface UpdateAdminUserRequest {

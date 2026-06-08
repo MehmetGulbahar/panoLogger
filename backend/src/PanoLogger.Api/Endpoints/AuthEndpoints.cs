@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PanoLogger.Api.Authentication;
-using PanoLogger.Application.Common.Exceptions;
 using PanoLogger.Application.Common.Interfaces;
 using PanoLogger.Domain.Roles;
 using PanoLogger.Domain.Users;
@@ -18,69 +17,6 @@ public static class AuthEndpoints
     {
         var group = app.MapGroup("/api/auth").WithTags("Auth");
 
-        group.MapPost("/register", async (
-            RegisterRequest request,
-            PanoLoggerDbContext dbContext,
-            IPasswordHasher<User> passwordHasher,
-            IJwtTokenService jwtTokenService,
-            IOptions<JwtOptions> jwtOptions,
-            HttpContext httpContext,
-            CancellationToken cancellationToken) =>
-        {
-            ValidateRegistration(request);
-            var email = request.Email.Trim().ToLowerInvariant();
-            var companyCode = NormalizeCompanyCode(request.CompanyCode);
-
-            if (await dbContext.Users.AnyAsync(user => user.Email == email, cancellationToken))
-            {
-                throw new ValidationException("An account with this email already exists.");
-            }
-
-            var company = await dbContext.Companies
-                .AsNoTracking()
-                .Where(item => item.CompanyCode == companyCode)
-                .Select(item => new { item.Id, item.CompanyCode })
-                .FirstOrDefaultAsync(cancellationToken)
-                ?? throw new ValidationException("No company was found with this company code.");
-
-            var viewerRoleId = await dbContext.Roles
-                .Where(role => role.Name == AppRoles.Viewer)
-                .Select(role => role.Id)
-                .SingleAsync(cancellationToken);
-
-            var user = new User
-            {
-                CompanyId = company.Id,
-                Email = email,
-                DisplayName = request.DisplayName.Trim(),
-                IsActive = true,
-            };
-            user.SetPasswordHash(passwordHasher.HashPassword(user, request.Password));
-
-            dbContext.Users.Add(user);
-            dbContext.UserRoles.Add(new UserRole
-            {
-                UserId = user.Id,
-                RoleId = viewerRoleId,
-            });
-
-            await dbContext.SaveChangesAsync(cancellationToken);
-
-            var permissions = await GetPermissionsForRolesAsync(dbContext, [AppRoles.Viewer], cancellationToken);
-
-            return Results.Ok(CreateSessionResponse(
-                user.Id,
-                user.Email,
-                user.DisplayName,
-                user.CompanyId,
-                [AppRoles.Viewer],
-                permissions,
-                jwtTokenService,
-                jwtOptions.Value,
-                httpContext));
-        })
-        .WithName("RegisterUser");
-
         group.MapPost("/login", async (
             LoginRequest request,
             PanoLoggerDbContext dbContext,
@@ -90,14 +26,14 @@ public static class AuthEndpoints
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
-            var email = request.Email.Trim().ToLowerInvariant();
-            var user = await dbContext.Users.FirstOrDefaultAsync(item => item.Email == email, cancellationToken);
+            var username = NormalizeUsername(request.Username);
+            var user = await dbContext.Users.FirstOrDefaultAsync(item => item.Username == username, cancellationToken);
 
             if (user is null
                 || !user.IsActive
                 || passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password) == PasswordVerificationResult.Failed)
             {
-                throw new UnauthorizedAccessException("Invalid email or password.");
+                throw new UnauthorizedAccessException("Invalid username or password.");
             }
 
             var roles = await (
@@ -117,7 +53,7 @@ public static class AuthEndpoints
 
             return Results.Ok(CreateSessionResponse(
                 user.Id,
-                user.Email,
+                user.Username,
                 user.DisplayName,
                 user.CompanyId,
                 roles,
@@ -132,16 +68,15 @@ public static class AuthEndpoints
             DevTokenRequest request,
             IJwtTokenService jwtTokenService,
             IOptions<JwtOptions> jwtOptions,
-            PanoLoggerDbContext dbContext,
             HttpContext httpContext) =>
         {
             var userId = request.UserId ?? Guid.NewGuid();
-            var email = string.IsNullOrWhiteSpace(request.Email) ? "demo@panologger.local" : request.Email;
-            var displayName = email.Split('@', 2)[0];
+            var username = string.IsNullOrWhiteSpace(request.Username) ? "demo" : NormalizeUsername(request.Username);
+            var displayName = username;
             var roles = NormalizeRoles(request.Roles);
             var permissions = AppPermissions.ForRoles(roles);
 
-            return Results.Ok(CreateSessionResponse(userId, email, displayName, null, roles, permissions, jwtTokenService, jwtOptions.Value, httpContext));
+            return Results.Ok(CreateSessionResponse(userId, username, displayName, null, roles, permissions, jwtTokenService, jwtOptions.Value, httpContext));
         })
         .WithName("CreateDevelopmentToken");
 
@@ -161,14 +96,14 @@ public static class AuthEndpoints
             var user = await dbContext.Users
                 .AsNoTracking()
                 .Where(item => item.Id == userId && item.IsActive)
-                .Select(item => new { item.Id, item.Email, item.DisplayName, item.CompanyId })
+                .Select(item => new { item.Id, item.Username, item.DisplayName, item.CompanyId })
                 .FirstOrDefaultAsync(cancellationToken)
                 ?? throw new UnauthorizedAccessException("User account was not found or is inactive.");
 
             return Results.Ok(new
             {
                 id = user.Id,
-                email = user.Email,
+                username = user.Username,
                 displayName = user.DisplayName,
                 companyId = user.CompanyId,
                 roles = principal.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray(),
@@ -199,7 +134,7 @@ public static class AuthEndpoints
 
     private static object CreateSessionResponse(
         Guid userId,
-        string email,
+        string username,
         string displayName,
         Guid? companyId,
         string[] roles,
@@ -208,7 +143,7 @@ public static class AuthEndpoints
         JwtOptions jwtOptions,
         HttpContext httpContext)
     {
-        var accessToken = jwtTokenService.CreateAccessToken(userId, email, companyId, roles, permissions);
+        var accessToken = jwtTokenService.CreateAccessToken(userId, username, companyId, roles, permissions);
         httpContext.Response.Cookies.Append(
             JwtAuthenticationExtensions.AccessTokenCookieName,
             accessToken,
@@ -219,7 +154,7 @@ public static class AuthEndpoints
             user = new
             {
                 id = userId,
-                email,
+                username,
                 displayName,
                 companyId,
                 roles,
@@ -274,35 +209,9 @@ public static class AuthEndpoints
         };
     }
 
-    private static void ValidateRegistration(RegisterRequest request)
+    private static string NormalizeUsername(string username)
     {
-        if (string.IsNullOrWhiteSpace(request.DisplayName) || request.DisplayName.Trim().Length < 2)
-        {
-            throw new ValidationException("Display name must contain at least 2 characters.");
-        }
-
-        if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@', StringComparison.Ordinal))
-        {
-            throw new ValidationException("A valid email address is required.");
-        }
-
-        if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
-        {
-            throw new ValidationException("Password must contain at least 8 characters.");
-        }
-
-        _ = NormalizeCompanyCode(request.CompanyCode);
-    }
-
-    private static string NormalizeCompanyCode(string? companyCode)
-    {
-        var normalized = companyCode?.Trim().ToUpperInvariant() ?? "";
-        if (normalized.Length == 0)
-        {
-            throw new ValidationException("Company code is required.");
-        }
-
-        return normalized;
+        return username.Trim().ToLowerInvariant();
     }
 
     private static string[] NormalizeRoles(string[]? roles)
@@ -321,8 +230,6 @@ public static class AuthEndpoints
     }
 }
 
-public sealed record RegisterRequest(string DisplayName, string Email, string Password, string CompanyCode);
+public sealed record LoginRequest(string Username, string Password);
 
-public sealed record LoginRequest(string Email, string Password);
-
-public sealed record DevTokenRequest(Guid? UserId, string? Email, string[]? Roles);
+public sealed record DevTokenRequest(Guid? UserId, string? Username, string[]? Roles);

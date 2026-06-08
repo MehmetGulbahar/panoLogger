@@ -83,12 +83,44 @@
         </footer>
       </template>
     </section>
+
+    <Teleport to="body">
+      <div v-if="previewFile" class="preview-backdrop" role="presentation" @click.self="closePreview">
+        <section
+          class="preview-dialog"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="`${previewFile.fileName} dosya onizleme`"
+        >
+          <header class="preview-dialog__header">
+            <div class="preview-dialog__title">
+              <strong>{{ previewFile.fileName }}</strong>
+              <span>{{ formatFileSize(previewFile.sizeBytes) }}</span>
+            </div>
+            <div class="preview-dialog__actions">
+              <button type="button" class="file-action" title="Indir" @click="downloadFile(previewFile)">
+                <i class="pi pi-download" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="file-action" title="Kapat" @click="closePreview">
+                <i class="pi pi-times" aria-hidden="true"></i>
+              </button>
+            </div>
+          </header>
+
+          <iframe
+            class="preview-dialog__frame"
+            :src="previewUrl"
+            :title="previewFile.fileName"
+          ></iframe>
+        </section>
+      </div>
+    </Teleport>
   </main>
 </template>
 
 <script setup lang="ts">
 import axios from 'axios';
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { apiClient } from '@/api/client';
 import { apiEndpoints } from '@/api/endpoints';
@@ -108,6 +140,7 @@ const route = useRoute();
 const publicPanel = ref<PublicPanelResponse | null>(null);
 const isLoading = ref(false);
 const errorMessage = ref('');
+const previewFile = ref<PublicPanelFileResponse | null>(null);
 
 const panelCode = computed(() => String(route.params.panelCode ?? '').trim());
 const panelTitle = computed(() => publicPanel.value?.panelName ?? 'Panel bilgisi');
@@ -118,6 +151,8 @@ const panelSubtitle = computed(() => {
 
   return `${publicPanel.value.panelCode} · ${publicPanel.value.facilityName}`;
 });
+
+const previewUrl = computed(() => (previewFile.value ? resolveApiUrl(previewFile.value.viewUrl) : ''));
 
 const documentCards = computed<PublicDocumentCard[]>(() => [
   {
@@ -150,6 +185,17 @@ const documentCards = computed<PublicDocumentCard[]>(() => [
 ]);
 
 watch(panelCode, loadPanel, { immediate: true });
+watch(previewFile, (file) => {
+  if (file) {
+    document.addEventListener('keydown', handlePreviewKeydown);
+  } else {
+    document.removeEventListener('keydown', handlePreviewKeydown);
+  }
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handlePreviewKeydown);
+});
 
 async function loadPanel(code: string) {
   publicPanel.value = null;
@@ -181,7 +227,17 @@ function filesByCategory(category: string) {
 }
 
 function viewFile(file: PublicPanelFileResponse) {
-  window.open(resolveApiUrl(file.viewUrl), '_blank', 'noopener,noreferrer');
+  previewFile.value = file;
+}
+
+function closePreview() {
+  previewFile.value = null;
+}
+
+function handlePreviewKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    closePreview();
+  }
 }
 
 function downloadFile(file: PublicPanelFileResponse) {
@@ -494,6 +550,71 @@ function formatFileSize(sizeBytes: number) {
 
 .public-footer strong {
   color: var(--app-text);
+}
+
+.preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgb(15 23 42 / 0.52);
+}
+
+.preview-dialog {
+  width: min(100%, 64rem);
+  height: min(86vh, 48rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-bg);
+  box-shadow: 0 24px 70px rgb(15 23 42 / 0.24);
+}
+
+.preview-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.preview-dialog__title {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.preview-dialog__title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  line-height: 1.25;
+}
+
+.preview-dialog__title span {
+  color: var(--app-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+.preview-dialog__actions {
+  display: flex;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+.preview-dialog__frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #f8fafc;
 }
 
 @media (min-width: 720px) {

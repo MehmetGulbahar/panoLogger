@@ -9,7 +9,7 @@ namespace PanoLogger.Infrastructure.Authentication;
 
 public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenService
 {
-    public string CreateAccessToken(Guid userId, string email, Guid? companyId, IEnumerable<string> roles, IEnumerable<string> permissions)
+    public string CreateAccessToken(Guid userId, string username, Guid? companyId, IEnumerable<string> roles, IEnumerable<string> permissions)
     {
         var jwtOptions = options.Value;
         var signingKey = string.IsNullOrWhiteSpace(jwtOptions.SigningKey)
@@ -18,9 +18,9 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, userId.ToString()),
-            new(JwtRegisteredClaimNames.Email, email),
+            new(JwtRegisteredClaimNames.UniqueName, username),
             new(ClaimTypes.NameIdentifier, userId.ToString()),
-            new(ClaimTypes.Email, email),
+            new(ClaimTypes.Name, username),
         };
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));

@@ -35,14 +35,18 @@
           <h2>Kullanıcı Yetkilendirme</h2>
           <p>Rol, şirket baglantisi ve aktiflik durumunu yonetin.</p>
         </div>
-        <div class="table-tools">
-          <input v-model="searchTerm" type="search" placeholder="Kullanıcı ara" aria-label="Kullanıcı ara" />
-          <select v-model="statusFilter" aria-label="Durum filtresi">
-            <option value="all">Tüm durumlar</option>
-            <option value="active">Aktif</option>
-            <option value="inactive">Pasif</option>
-          </select>
-        </div>
+       <div class="table-tools">
+       
+      <input v-model="searchTerm" type="search" placeholder="Kullanıcı ara" aria-label="Kullanıcı ara" />
+       <button class="icon-button" type="button" title="Yeni Kullanıcı Ekle" aria-label="Yeni Kullanıcı Ekle" :disabled="isLoading" @click="openCreateUserModal">
+        <i class="pi pi-plus" aria-hidden="true"></i>
+      </button>
+      <select v-model="statusFilter" aria-label="Durum filtresi">
+        <option value="all">Tüm durumlar</option>
+        <option value="active">Aktif</option>
+        <option value="inactive">Pasif</option>
+      </select>
+    </div>
       </div>
 
       <div class="admin-table-wrap">
@@ -64,7 +68,7 @@
             <tr v-for="user in filteredUsers" :key="user.id" :class="{ selected: selectedUser?.id === user.id }">
               <td>
                 <strong>{{ user.displayName }}</strong>
-                <span>{{ user.email }}</span>
+                <span>{{ user.username }}</span>
               </td>
               <td>
                 <strong>{{ user.projectName || 'Sistem geneli' }}</strong>
@@ -106,7 +110,7 @@
       <div class="section-head">
         <div>
           <h2>{{ selectedUser.displayName }}</h2>
-          <p>{{ selectedUser.email }}</p>
+          <p>{{ selectedUser.username }}</p>
         </div>
         <button class="icon-button" type="button" title="Kapat" aria-label="Kapat" @click="clearUserSelection">
           <i class="pi pi-times" aria-hidden="true"></i>
@@ -237,6 +241,65 @@
         </div>
       </div>
     </section>
+    <div v-if="isCreateUserOpen" class="modal-backdrop" role="presentation" @click.self="closeCreateUserModal">
+      <section class="user-modal" role="dialog" aria-modal="true" aria-labelledby="create-user-title">
+        <div class="section-head compact">
+          <div>
+            <h2 id="create-user-title">Yeni Kullanıcı</h2>
+            <p>Müşteriye verilecek kullanıcı adı ve geçici şifreyi oluşturun.</p>
+          </div>
+          <button class="icon-button" type="button" title="Kapat" aria-label="Kapat" @click="closeCreateUserModal">
+            <i class="pi pi-times" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <form class="admin-form" @submit.prevent="createUser">
+          <label class="field">
+            <span>Kullanıcı adı</span>
+            <input v-model="createUserForm.username" required placeholder="ornek.kullanici" autocomplete="off" />
+          </label>
+
+          <label class="field">
+            <span>Ad Soyad</span>
+            <input v-model="createUserForm.displayName" required placeholder="Mehmet Gül" autocomplete="off" />
+          </label>
+
+          <label class="field">
+            <span>Geçici Şifre</span>
+            <input v-model="createUserForm.password" type="text" required placeholder="En az 8 karakter" autocomplete="off" />
+          </label>
+
+          <label class="field">
+            <span>Şirket</span>
+            <select v-model="createUserForm.companyId">
+              <option :value="null">Sistem geneli / SuperAdmin</option>
+              <option v-for="company in companies" :key="company.id" :value="company.id">
+                {{ company.projectName }} - {{ company.companyCode }}
+              </option>
+            </select>
+          </label>
+
+          <fieldset class="role-fieldset">
+            <legend>Roller</legend>
+            <label v-for="role in roles" :key="role.id" class="role-option">
+              <input v-model="createUserForm.roles" type="checkbox" :value="role.name" />
+              <span>
+                <strong>{{ role.name }}</strong>
+                <small>{{ role.description }}</small>
+              </span>
+            </label>
+          </fieldset>
+
+          <div class="form-actions">
+            <UiButton variant="secondary" type="button" @click="closeCreateUserModal">Vazgeç</UiButton>
+            <UiButton variant="primary" type="submit" :disabled="isCreatingUser">
+              <i :class="isCreatingUser ? 'pi pi-spin pi-spinner' : 'pi pi-user-plus'" aria-hidden="true"></i>
+              Kullanıcı Oluştur
+            </UiButton>
+          </div>
+        </form>
+      </section>
+    </div>
   </section>
 </template>
 
@@ -252,6 +315,7 @@ import type {
   AdminOverview,
   AdminRole,
   AdminUser,
+  CreateAdminUserRequest,
   Permission,
   UpdateAdminUserRequest,
   UserRole,
@@ -272,15 +336,25 @@ const statusFilter = ref<'all' | 'active' | 'inactive'>('all');
 const errorMessage = ref('');
 const isLoading = ref(false);
 const isSavingUser = ref(false);
+const isCreatingUser = ref(false);
 const isDeletingUser = ref(false);
 const isSavingRole = ref(false);
 const isDeletingRole = ref(false);
+const isCreateUserOpen = ref(false);
 
 const editForm = reactive<UpdateAdminUserRequest>({
   displayName: '',
   companyId: null,
   isActive: true,
   roles: [],
+});
+
+const createUserForm = reactive<CreateAdminUserRequest>({
+  username: '',
+  displayName: '',
+  password: '',
+  companyId: null,
+  roles: ['Viewer'],
 });
 
 const roleForm = reactive({
@@ -293,9 +367,10 @@ const newRoleForm = reactive({
   description: '',
 });
 
-const isBusy = computed(() => isLoading.value || isSavingUser.value || isDeletingUser.value || isSavingRole.value || isDeletingRole.value);
+const isBusy = computed(() => isLoading.value || isSavingUser.value || isCreatingUser.value || isDeletingUser.value || isSavingRole.value || isDeletingRole.value);
 const loadingLabel = computed(() => {
   if (isSavingUser.value) return 'Kullanıcı güncelleniyor...';
+  if (isCreatingUser.value) return 'Kullanıcı oluşturuluyor...';
   if (isDeletingUser.value) return 'Kullanıcı siliniyor...';
   if (isSavingRole.value) return 'Rol izinleri kaydediliyor...';
   if (isDeletingRole.value) return 'Rol siliniyor...';
@@ -319,7 +394,7 @@ const filteredUsers = computed(() => {
   return users.value.filter((user) => {
     const matchesQuery = !query
       || user.displayName.toLowerCase().includes(query)
-      || user.email.toLowerCase().includes(query)
+      || user.username.toLowerCase().includes(query)
       || (user.projectName ?? '').toLowerCase().includes(query)
       || (user.companyCode ?? '').toLowerCase().includes(query);
     const matchesStatus = statusFilter.value === 'all'
@@ -381,6 +456,26 @@ function clearUserSelection(): void {
   errorMessage.value = '';
 }
 
+function openCreateUserModal(): void {
+  resetCreateUserForm();
+  isCreateUserOpen.value = true;
+  errorMessage.value = '';
+}
+
+function closeCreateUserModal(): void {
+  if (isCreatingUser.value) return;
+  isCreateUserOpen.value = false;
+  resetCreateUserForm();
+}
+
+function resetCreateUserForm(): void {
+  createUserForm.username = '';
+  createUserForm.displayName = '';
+  createUserForm.password = '';
+  createUserForm.companyId = null;
+  createUserForm.roles = ['Viewer'];
+}
+
 function selectRole(role: AdminRole): void {
   selectedRole.value = role;
   roleForm.description = role.description;
@@ -403,6 +498,25 @@ async function saveSelectedUser(): Promise<void> {
     handleRequestError(error, 'Kullanıcı güncellenemedi.');
   } finally {
     isSavingUser.value = false;
+  }
+}
+
+async function createUser(): Promise<void> {
+  isCreatingUser.value = true;
+  errorMessage.value = '';
+  try {
+    const { data } = await apiClient.post<AdminUser>(`${apiEndpoints.admin}/users`, {
+      ...createUserForm,
+      roles: createUserForm.roles as UserRole[],
+    });
+    showSuccess('Kullanıcı oluşturuldu', `${data.username} kullanıcı adı hazır.`);
+    isCreateUserOpen.value = false;
+    resetCreateUserForm();
+    await loadAdminData();
+  } catch (error: any) {
+    handleRequestError(error, 'Kullanıcı oluşturulamadı.');
+  } finally {
+    isCreatingUser.value = false;
   }
 }
 
@@ -558,7 +672,7 @@ function formatDate(value: string): string {
 .role-create-form h3 { margin:0; font-size:0.95rem; color:var(--app-text) }
 .section-head p,
 .role-create-form p { margin:0.25rem 0 0; color:var(--app-text-muted); font-size:0.78rem }
-.table-tools { display:flex; align-items:center; gap:0.45rem }
+.table-tools { display:flex; align-items:center; gap:0.5rem }
 .table-tools input,
 .table-tools select,
 .field input,
@@ -614,7 +728,10 @@ function formatDate(value: string): string {
 .permission-option { display:flex; align-items:center; gap:0.45rem; min-height:2.1rem; border:1px solid var(--app-border); border-radius:7px; padding:0.45rem 0.55rem; color:var(--app-text); font-size:0.75rem }
 .permission-option:has(input:checked) { border-color:rgba(37,99,235,0.45); background:#eff6ff; color:var(--app-primary); font-weight:700 }
 .empty-panel { display:grid; place-items:center; min-height:10rem; border:1px dashed var(--app-border); border-radius:8px; color:var(--app-text-muted); font-size:0.8rem }
-.admin-alert { margin:0; border-radius:8px; padding:0.65rem 0.75rem; font-size:0.8rem; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca }
+.modal-backdrop { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:1rem; background:rgba(15,23,42,0.36); backdrop-filter:blur(3px) }
+.user-modal { width:min(100%,42rem); max-height:calc(100vh - 2rem); overflow:auto; border:1px solid var(--app-border); border-radius:8px; background:var(--app-surface); box-shadow:0 24px 70px rgba(15,23,42,0.22); padding:0.95rem }
+.user-modal .admin-form { grid-template-columns:repeat(2,minmax(0,1fr)) }
+
 
 @media (max-width: 1200px) {
   .metric-grid { grid-template-columns:repeat(3,minmax(0,1fr)) }
@@ -636,5 +753,6 @@ function formatDate(value: string): string {
   .permission-options { grid-template-columns:1fr }
   .table-tools input { width:100% }
   .role-create-form .ui-button { width:100%; justify-self:stretch }
+  .user-modal .admin-form { grid-template-columns:1fr }
 }
 </style>

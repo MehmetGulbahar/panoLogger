@@ -34,7 +34,7 @@
           <div v-if="isUserMenuOpen" class="app-header__user-menu" role="menu">
             <div class="app-header__user-summary">
               <strong>{{ displayName }}</strong>
-              <span>{{ authStore.user?.email }}</span>
+              <span>{{ authStore.user?.username }}</span>
             </div>
             <button class="app-header__logout" type="button" role="menuitem" :disabled="isLoggingOut" @click="onLogout">
               <i :class="isLoggingOut ? 'pi pi-spin pi-spinner' : 'pi pi-sign-out'" aria-hidden="true"></i>
@@ -71,7 +71,7 @@ const roleLabels: Record<UserRole, string> = {
   Viewer: 'Görüntüleyici',
 };
 
-const displayName = computed(() => authStore.user?.displayName || authStore.user?.email || 'Kullanıcı');
+const displayName = computed(() => authStore.user?.displayName || authStore.user?.username || 'Kullanıcı');
 const primaryRoleLabel = computed(() => {
   const role = authStore.roles[0];
   return role ? roleLabels[role] : 'Kullanıcı';

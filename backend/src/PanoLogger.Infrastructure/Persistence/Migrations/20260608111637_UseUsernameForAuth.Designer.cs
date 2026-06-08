@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PanoLogger.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using PanoLogger.Infrastructure.Persistence;
 namespace PanoLogger.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PanoLoggerDbContext))]
-    partial class PanoLoggerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260608111637_UseUsernameForAuth")]
+    partial class UseUsernameForAuth
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -812,6 +815,12 @@ namespace PanoLogger.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(160)")
                         .HasColumnName("display_name");
 
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("username");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
@@ -825,12 +834,6 @@ namespace PanoLogger.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at_utc");
-
-                    b.Property<string>("Username")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)")
-                        .HasColumnName("username");
 
                     b.HasKey("Id");
 

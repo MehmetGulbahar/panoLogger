@@ -200,7 +200,7 @@ async function onCreateQr() {
       qr,
     });
   } catch (error) {
-    qrError.value = getApiError(error, 'QR kodu olusturulamadi. API baglantisini ve kullanici yetkisini kontrol edin.');
+    qrError.value = getApiError(error, 'QR kodu oluşturulamadı. API bağlantısini ve kullanıcı yetkisini kontrol edin.');
   } finally {
     isCreatingQr.value = false;
   }

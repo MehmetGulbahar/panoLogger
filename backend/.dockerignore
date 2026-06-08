@@ -1,0 +1,10 @@
+**/.codex-build/
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+**/*.user
+**/*.suo
+**/*.log
+docs/
+README.md

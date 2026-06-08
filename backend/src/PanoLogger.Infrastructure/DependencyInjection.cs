@@ -79,6 +79,7 @@ public static class DependencyInjection
             Username = options.PostgresUsername,
             Password = options.PostgresPassword,
             SslMode = SslMode.Require,
+            GssEncryptionMode = GssEncryptionMode.Disable,
         }.ConnectionString;
     }
 }

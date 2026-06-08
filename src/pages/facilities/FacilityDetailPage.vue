@@ -55,13 +55,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { routeNames } from '@/constants/routes';
 import { useHierarchyStore } from '@/stores';
 import { useFileStore } from '@/stores/file-store';
 
 const route = useRoute();
-const router = useRouter();
 const hierarchyStore = useHierarchyStore();
 onMounted(() => hierarchyStore.load());
 
@@ -78,14 +77,7 @@ const emptyFacility = { id: '', companyId: '', name: '', city: '', district: '',
 const panelCount = computed(() => facility.value.panels.length);
 const facilityPanels = computed(() => facility.value.panels);
 
-// mock shops/files — use 1 and 0 as in screenshot
-const shopCount = computed(() => 1);
-const fileCount = computed(() => 0);
 const fileStore = useFileStore();
-
-function goToFacilities() {
-  router.push({ name: 'facilities' });
-}
 
 function getPanelFileCount(panelId: string): number {
   return fileStore.getPanelFileCount(panelId);

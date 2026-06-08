@@ -49,15 +49,12 @@
 
 <script setup lang="ts">
 import Avatar from 'primevue/avatar';
-import Button from 'primevue/button';
-import InputText from 'primevue/inputtext';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { routeNames } from '@/constants/routes';
 import { useAuthStore } from '@/stores';
 import type { UserRole } from '@/types/auth';
 
-const searchValue = ref('');
 const authStore = useAuthStore();
 const router = useRouter();
 const userMenuRoot = ref<HTMLElement | null>(null);

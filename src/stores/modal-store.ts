@@ -8,7 +8,17 @@ export const useModalStore = defineStore('modal', () => {
 
   function open(component: any, props?: Record<string, any>, slots?: Record<string, any>) {
     const id = Math.random().toString(36).slice(2, 9);
-    modals.push({ id, component, props, slots });
+    const modal: ModalEntry = { id, component };
+
+    if (props) {
+      modal.props = props;
+    }
+
+    if (slots) {
+      modal.slots = slots;
+    }
+
+    modals.push(modal);
     return id;
   }
 

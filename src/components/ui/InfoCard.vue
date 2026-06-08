@@ -10,7 +10,7 @@
 
       <div class="info-card__meta">
         <slot name="meta">
-          <template v-for="(m, i) in meta" :key="i">
+          <template v-for="m in meta" :key="m">
             <div class="info-card__meta-item">{{ m }}</div>
           </template>
         </slot>

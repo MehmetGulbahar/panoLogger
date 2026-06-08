@@ -5,8 +5,8 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps({ ariaLabel: { type: String, default: 'Eylem' } });
-const emit = defineEmits(['click']);
+defineProps({ ariaLabel: { type: String, default: 'Eylem' } });
+defineEmits(['click']);
 </script>
 
 <style scoped>

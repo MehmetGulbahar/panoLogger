@@ -38,8 +38,8 @@
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from 'vue';
 import EmptyState from './EmptyState.vue';
-import { toRef } from 'vue';
 
 type Column = { key: string; label: string };
 
@@ -50,13 +50,11 @@ const props = defineProps<{
   sortable?: boolean;
 }>();
 
-const emit = defineEmits<{
+defineEmits<{
   (e: 'row-click', item: Record<string, any>): void;
 }>();
 
-const rowKey = toRef(props, 'rowKey');
-
-import { ref, computed } from 'vue';
+const rowKey = computed(() => props.rowKey ?? 'id');
 
 const sorters = ref<Array<{ key: string; dir: 'asc' | 'desc' }>>([]);
 

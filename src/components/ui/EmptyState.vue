@@ -7,7 +7,7 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps({ title: { type: String, default: 'Boş' }, description: { type: String, default: '' } });
+defineProps({ title: { type: String, default: 'Boş' }, description: { type: String, default: '' } });
 </script>
 
 <style scoped>

@@ -3,6 +3,8 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+
 const props = defineProps({ at: { type: String, default: 'sm' } });
 
 const hiddenClass = computed(() => {

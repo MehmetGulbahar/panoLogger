@@ -160,13 +160,21 @@ function findActiveHierarchy(): { companyId?: string; facilityId?: string } {
 
   if (routeFacilityId) {
     const facility = hierarchyStore.facilities.find((item) => item.id === routeFacilityId);
-    return { companyId: facility?.companyId, facilityId: routeFacilityId };
+    return facility?.companyId
+      ? { companyId: facility.companyId, facilityId: routeFacilityId }
+      : { facilityId: routeFacilityId };
   }
 
   if (routePanelId) {
     const panel = hierarchyStore.panels.find((item) => item.id === routePanelId);
     const facility = panel ? hierarchyStore.facilities.find((item) => item.id === panel.facilityId) : undefined;
-    return { companyId: facility?.companyId, facilityId: facility?.id };
+    if (!facility) {
+      return {};
+    }
+
+    return facility.companyId
+      ? { companyId: facility.companyId, facilityId: facility.id }
+      : { facilityId: facility.id };
   }
 
   return {};

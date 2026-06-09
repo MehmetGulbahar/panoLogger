@@ -30,7 +30,7 @@ public static class PublicPanelEndpoints
             var files = storedFiles
                 .Select(file => new PublicPanelFileResponse(
                     file.Id,
-                    file.Category.ToString(),
+                    file.Category,
                     file.FileName,
                     file.ContentType,
                     file.SizeBytes,
@@ -41,9 +41,10 @@ public static class PublicPanelEndpoints
             return Results.Ok(panel with
             {
                 Documents = new PublicPanelDocumentsResponse(
-                    files.Count(file => file.Category == PanelFileCategory.ElectricalProject.ToString()),
-                    files.Count(file => file.Category == PanelFileCategory.MaintenanceReport.ToString()),
-                    files.Count(file => file.Category == PanelFileCategory.PanelDocument.ToString()),
+                    files.Count(file => file.Category == "ElectricalProject"),
+                    files.Count(file => file.Category == "MaintenanceReport"),
+                    files.Count(file => file.Category == "PanelDocument"),
+                    files.GroupBy(file => file.Category).ToDictionary(group => group.Key, group => group.Count()),
                     files)
             });
         })
@@ -112,7 +113,7 @@ public static class PublicPanelEndpoints
                 panelResult.CompanyId,
                 panelResult.CompanyName,
                 panelResult.ProjectName,
-                new PublicPanelDocumentsResponse(0, 0, 0, Array.Empty<PublicPanelFileResponse>()));
+                new PublicPanelDocumentsResponse(0, 0, 0, new Dictionary<string, int>(), Array.Empty<PublicPanelFileResponse>()));
     }
 
     private static async Task<IResult> GetPublicPanelFileAsync(
@@ -158,6 +159,7 @@ public sealed record PublicPanelDocumentsResponse(
     int ElectricalProjectCount,
     int MaintenanceReportCount,
     int PanelDocumentCount,
+    IReadOnlyDictionary<string, int> CategoryCounts,
     IReadOnlyCollection<PublicPanelFileResponse> Files);
 
 public sealed record PublicPanelFileResponse(

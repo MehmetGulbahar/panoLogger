@@ -12,7 +12,7 @@ public sealed class PanelFileConfiguration : IEntityTypeConfiguration<PanelFile>
         builder.ToTable("panel_files");
         builder.HasKey(file => file.Id);
 
-        builder.Property(file => file.Category).HasConversion<string>().HasMaxLength(40).IsRequired();
+        builder.Property(file => file.Category).HasMaxLength(80).IsRequired();
         builder.Property(file => file.FileName).HasMaxLength(255).IsRequired();
         builder.Property(file => file.StoragePath).HasMaxLength(1024).IsRequired();
         builder.Property(file => file.ContentType).HasMaxLength(120).IsRequired();

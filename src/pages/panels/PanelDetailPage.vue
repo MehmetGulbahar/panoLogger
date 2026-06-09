@@ -28,19 +28,43 @@
     <p v-if="qrError" class="panel-error" role="alert">{{ qrError }}</p>
     <p v-if="fileError" class="panel-error" role="alert">{{ fileError }}</p>
 
-    <nav class="panel-tabs" role="tablist" aria-label="Dosya kategorileri">
-      <button
-        v-for="tab in fileTabs"
-        :key="tab.key"
-        :class="['tab', { active: activeFileTab === tab.key }]"
-        type="button"
-        role="tab"
-        :aria-selected="activeFileTab === tab.key"
-        @click="activeFileTab = tab.key"
-      >
-        {{ tab.label }}
-      </button>
-    </nav>
+    <div class="category-strip">
+      <nav class="panel-tabs" role="tablist" aria-label="Dosya kategorileri">
+        <button
+          v-for="tab in fileTabs"
+          :key="tab.key"
+          :class="['tab', { active: activeFileTab === tab.key }]"
+          type="button"
+          role="tab"
+          :aria-selected="activeFileTab === tab.key"
+          @click="activeFileTab = tab.key"
+        >
+          {{ tab.label }}
+        </button>
+      </nav>
+
+      <div v-if="canManageFiles" class="category-actions" aria-label="Kategori yönetimi">
+        <input v-model="newCategoryName" type="text" placeholder="Yeni kategori" @keydown.enter.prevent="createCategory" />
+        <button type="button" class="category-action" :disabled="isSavingCategory || !newCategoryName.trim()" @click="createCategory">
+          <i :class="isSavingCategory ? 'pi pi-spin pi-spinner' : 'pi pi-plus'" aria-hidden="true"></i>
+          Ekle
+        </button>
+        <button type="button" class="category-action" :disabled="isSavingCategory" @click="startRenameCategory">
+          <i class="pi pi-pencil" aria-hidden="true"></i>
+          Adını Değiştir
+        </button>
+        <button type="button" class="category-action category-action--danger" :disabled="isSavingCategory || activePanelFiles.length > 0" @click="deleteCategory">
+          <i class="pi pi-trash" aria-hidden="true"></i>
+          Sil
+        </button>
+      </div>
+
+      <div v-if="editingCategory" class="category-edit">
+        <input v-model="editCategoryName" type="text" @keydown.enter.prevent="saveCategoryName" />
+        <button type="button" class="category-action" :disabled="isSavingCategory || !editCategoryName.trim()" @click="saveCategoryName">Kaydet</button>
+        <button type="button" class="category-action" :disabled="isSavingCategory" @click="cancelRenameCategory">Vazgeç</button>
+      </div>
+    </div>
 
     <main>
       <section class="panel-card card">
@@ -65,7 +89,7 @@
               <i class="pi pi-file file-row__icon" aria-hidden="true"></i>
               <div class="file-row__copy">
                 <strong>{{ item.fileName }}</strong>
-                <span>{{ item.category }} - {{ formatFileSize(item.sizeBytes) }}</span>
+                <span>{{ getCategoryLabel(item.category) }} - {{ formatFileSize(item.sizeBytes) }}</span>
               </div>
               <button class="file-row__download" type="button" title="Indir" @click="downloadFile(item)">
                 <i class="pi pi-download" aria-hidden="true"></i>
@@ -96,42 +120,13 @@ import { useRoute } from 'vue-router';
 import { apiClient } from '@/api/client';
 import { apiEndpoints } from '@/api/endpoints';
 import QrCodeModal from '@/components/qr/QrCodeModal.vue';
+import { defaultPanelFileCategories, getPanelFileCategoryDefinition, type PanelFileCategoryDefinition } from '@/constants/file-categories';
 import { useAuthStore, useHierarchyStore } from '@/stores';
 import { useFileStore } from '@/stores/file-store';
 import { useModalStore } from '@/stores/modal-store';
 import { appRoles } from '@/utils/authorization';
 import type { FileDownloadResponse, PanelFileResponse } from '@/types/files';
 import type { GeneratedQrCodeResponse, QrCodeResponse } from '@/types/qr';
-
-type FileTabKey = 'MaintenanceReport' | 'ElectricalProject' | 'PanelDocument';
-
-type FileTab = {
-  key: FileTabKey;
-  label: string;
-  title: string;
-  icon: string;
-};
-
-const fileTabs: FileTab[] = [
-  {
-    key: 'MaintenanceReport',
-    label: 'Bakım',
-    title: 'Bakım Raporu',
-    icon: 'pi pi-wrench',
-  },
-  {
-    key: 'ElectricalProject',
-    label: 'Tek Hat',
-    title: 'Tek Hat Dosyaları',
-    icon: 'pi pi-sitemap',
-  },
-  {
-    key: 'PanelDocument',
-    label: 'Proje',
-    title: 'Proje Dosyaları',
-    icon: 'pi pi-file',
-  },
-];
 
 const route = useRoute();
 const confirm = useConfirm();
@@ -143,10 +138,15 @@ const isCreatingQr = ref(false);
 const qrError = ref('');
 const fileInput = ref<HTMLInputElement | null>(null);
 const panelFiles = ref<PanelFileResponse[]>([]);
-const activeFileTab = ref<FileTabKey>('MaintenanceReport');
+const fileTabs = ref<PanelFileCategoryDefinition[]>([...defaultPanelFileCategories]);
+const activeFileTab = ref('MaintenanceReport');
 const isLoadingFiles = ref(false);
 const isUploading = ref(false);
 const fileError = ref('');
+const isSavingCategory = ref(false);
+const newCategoryName = ref('');
+const editingCategory = ref(false);
+const editCategoryName = ref('');
 const canManageQr = computed(() => authStore.hasPermission('qr.manage'));
 const canManageFiles = computed(() => authStore.hasPermission('files.manage'));
 const canDeleteFiles = computed(() => (
@@ -154,7 +154,10 @@ const canDeleteFiles = computed(() => (
   || authStore.hasAnyRole([appRoles.superAdmin])
 ));
 const hasPanelActions = computed(() => canManageQr.value || canManageFiles.value);
-const activeTab = computed(() => fileTabs.find((tab) => tab.key === activeFileTab.value) ?? fileTabs[0]);
+const activeTab = computed(() => (
+  fileTabs.value.find((category) => category.key === activeFileTab.value)
+  ?? getPanelFileCategoryDefinition(activeFileTab.value)
+));
 const activePanelFiles = computed(() => panelFiles.value.filter((file) => file.category === activeFileTab.value));
 const emptyStateSubtitle = computed(() => (
   canManageFiles.value
@@ -176,10 +179,24 @@ watch(panelId, async (nextPanelId) => {
   panelFiles.value = [];
   fileError.value = '';
   await hierarchyStore.load();
+  await loadFileCategories();
   if (nextPanelId) {
     await loadFiles(nextPanelId);
   }
 }, { immediate: true });
+
+async function loadFileCategories() {
+  try {
+    const { data } = await apiClient.get<FileCategoryResponse[]>(apiEndpoints.fileCategories);
+    fileTabs.value = data.map(mapCategoryResponse);
+
+    if (!fileTabs.value.some((category) => category.key === activeFileTab.value)) {
+      activeFileTab.value = fileTabs.value[0]?.key ?? 'MaintenanceReport';
+    }
+  } catch {
+    fileTabs.value = [...defaultPanelFileCategories];
+  }
+}
 
 async function onCreateQr() {
   isCreatingQr.value = true;
@@ -317,11 +334,122 @@ function formatFileSize(sizeBytes: number) {
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function getCategoryLabel(category: string) {
+  return fileTabs.value.find((item) => item.key === category)?.label
+    ?? getPanelFileCategoryDefinition(category).label;
+}
+
+async function createCategory() {
+  const name = newCategoryName.value.trim();
+
+  if (!name) {
+    return;
+  }
+
+  isSavingCategory.value = true;
+  fileError.value = '';
+
+  try {
+    const { data } = await apiClient.post<FileCategoryResponse>(apiEndpoints.fileCategories, {
+      name,
+      description: `${name} dosyalari`,
+      icon: 'pi pi-folder',
+    });
+    newCategoryName.value = '';
+    await loadFileCategories();
+    activeFileTab.value = data.key;
+  } catch (error) {
+    fileError.value = getApiError(error, 'Kategori olusturulamadi. Ayni isimde kategori olabilir.');
+  } finally {
+    isSavingCategory.value = false;
+  }
+}
+
+function startRenameCategory() {
+  editingCategory.value = true;
+  editCategoryName.value = activeTab.value.label;
+}
+
+function cancelRenameCategory() {
+  editingCategory.value = false;
+  editCategoryName.value = '';
+}
+
+async function saveCategoryName() {
+  const category = activeTab.value;
+  const name = editCategoryName.value.trim();
+
+  if (!category.id || !name) {
+    return;
+  }
+
+  isSavingCategory.value = true;
+  fileError.value = '';
+
+  try {
+    await apiClient.put(`${apiEndpoints.fileCategories}/${category.id}`, {
+      name,
+      description: category.description,
+      icon: category.icon,
+      sortOrder: category.sortOrder,
+    });
+    cancelRenameCategory();
+    await loadFileCategories();
+  } catch (error) {
+    fileError.value = getApiError(error, 'Kategori adi guncellenemedi.');
+  } finally {
+    isSavingCategory.value = false;
+  }
+}
+
+async function deleteCategory() {
+  const category = activeTab.value;
+
+  if (!category.id || activePanelFiles.value.length > 0) {
+    return;
+  }
+
+  isSavingCategory.value = true;
+  fileError.value = '';
+
+  try {
+    await apiClient.delete(`${apiEndpoints.fileCategories}/${category.id}`);
+    await loadFileCategories();
+  } catch (error) {
+    fileError.value = getApiError(error, 'Kategori silinemedi. Icerisinde dosya varsa once dosyalari silin.');
+  } finally {
+    isSavingCategory.value = false;
+  }
+}
+
+function mapCategoryResponse(category: FileCategoryResponse): PanelFileCategoryDefinition {
+  return {
+    id: category.id,
+    key: category.key,
+    label: category.name,
+    title: category.name,
+    description: category.description || `${category.name} dosyalari`,
+    icon: category.icon || 'pi pi-file',
+    sortOrder: category.sortOrder,
+    isSystem: category.isSystem,
+  };
+}
+
 function getApiError(error: unknown, fallback: string) {
   return axios.isAxiosError(error) && typeof error.response?.data?.detail === 'string'
     ? error.response.data.detail
     : fallback;
 }
+
+type FileCategoryResponse = {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  icon: string;
+  sortOrder: number;
+  isSystem: boolean;
+};
 </script>
 
 <style scoped>
@@ -331,9 +459,19 @@ function getApiError(error: unknown, fallback: string) {
 .panel-actions { display:flex; gap:0.5rem }
 .panel-error { margin:0 0 0.9rem; padding:0.6rem 0.75rem; border:1px solid #fecaca; border-radius:8px; background:#fef2f2; color:#b91c1c; font-size:0.8125rem }
 
-.panel-tabs { display:flex; gap:0.4rem; margin-bottom:0.9rem }
+.category-strip { display:grid; gap:0.65rem; margin-bottom:0.9rem }
+.panel-tabs { display:flex; gap:0.4rem; flex-wrap:wrap }
 .tab { background:var(--app-surface); border:1px solid var(--app-border); padding:0.45rem 0.75rem; border-radius:8px; color:var(--app-text-muted); font-size:0.8125rem; line-height:1.2; cursor:pointer }
 .tab.active { background:var(--app-surface-alt); color:var(--app-text); font-weight:600; border-color:rgba(37,99,235,0.35) }
+.category-actions,
+.category-edit { display:flex; align-items:center; gap:0.5rem; padding:0.65rem; border:1px solid var(--app-border); border-radius:10px; background:var(--app-surface) }
+.category-actions input,
+.category-edit input { min-width:12rem; height:2.25rem; border:1px solid var(--app-border); border-radius:8px; background:var(--app-bg); padding:0 0.75rem; color:var(--app-text); font-size:0.8125rem }
+.category-action { display:inline-flex; align-items:center; justify-content:center; gap:0.4rem; min-height:2.25rem; padding:0.45rem 0.7rem; border:1px solid var(--app-border); border-radius:8px; background:var(--app-bg); color:var(--app-text); font-size:0.8125rem; line-height:1.2; white-space:nowrap; cursor:pointer }
+.category-action:hover:not(:disabled) { border-color:var(--app-primary); color:var(--app-primary); background:var(--primary-50) }
+.category-action--danger { color:#b91c1c }
+.category-action--danger:hover:not(:disabled) { border-color:#fecaca; color:#b91c1c; background:#fef2f2 }
+.category-action:disabled { opacity:0.55; cursor:not-allowed }
 
 .panel-card.card { padding:1rem 1.25rem; border-radius:10px; border:1px solid var(--app-border); background:var(--app-bg) }
 .panel-card__header { margin-bottom:0.9rem }
@@ -363,5 +501,10 @@ function getApiError(error: unknown, fallback: string) {
 @media (max-width: 760px) {
   .panel-header { flex-direction:column; align-items:flex-start }
   .panel-actions { width:100%; justify-content:flex-end }
+  .category-actions,
+  .category-edit { align-items:stretch; flex-direction:column }
+  .category-actions input,
+  .category-edit input,
+  .category-action { width:100% }
 }
 </style>

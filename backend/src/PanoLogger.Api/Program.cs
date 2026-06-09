@@ -51,8 +51,11 @@ builder.Services.AddCors(options =>
 builder.Services.AddProblemDetails();
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.KnownNetworks.Clear();
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor |
+        ForwardedHeaders.XForwardedProto;
+
+    options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
 });
 
@@ -79,6 +82,7 @@ app.MapAuthEndpoints();
 app.MapAdminEndpoints();
 app.MapHierarchyEndpoints();
 app.MapQrEndpoints();
+app.MapFileCategoryEndpoints();
 app.MapFileEndpoints();
 app.MapPublicPanelEndpoints();
 

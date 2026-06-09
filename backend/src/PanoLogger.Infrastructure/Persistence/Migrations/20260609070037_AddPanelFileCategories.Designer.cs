@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PanoLogger.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using PanoLogger.Infrastructure.Persistence;
 namespace PanoLogger.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PanoLoggerDbContext))]
-    partial class PanoLoggerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260609070037_AddPanelFileCategories")]
+    partial class AddPanelFileCategories
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -270,8 +273,8 @@ namespace PanoLogger.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Category")
                         .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
                         .HasColumnName("category");
 
                     b.Property<string>("ContentType")
@@ -316,105 +319,6 @@ namespace PanoLogger.Infrastructure.Persistence.Migrations
                     b.HasIndex("PanelId", "Category");
 
                     b.ToTable("panel_files", (string)null);
-                });
-
-            modelBuilder.Entity("PanoLogger.Domain.Files.PanelFileCategory", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at_utc");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(240)
-                        .HasColumnType("character varying(240)")
-                        .HasColumnName("description");
-
-                    b.Property<string>("Icon")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)")
-                        .HasColumnName("icon");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_active");
-
-                    b.Property<bool>("IsSystem")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_system");
-
-                    b.Property<string>("Key")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)")
-                        .HasColumnName("key");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)")
-                        .HasColumnName("name");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer")
-                        .HasColumnName("sort_order");
-
-                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at_utc");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Key")
-                        .IsUnique();
-
-                    b.HasIndex("SortOrder");
-
-                    b.ToTable("panel_file_categories", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("aaaa1111-1111-1111-1111-111111111111"),
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            Description = "Periyodik bakım kayıtları",
-                            Icon = "pi pi-wrench",
-                            IsActive = true,
-                            IsSystem = true,
-                            Key = "MaintenanceReport",
-                            Name = "Bakım",
-                            SortOrder = 10
-                        },
-                        new
-                        {
-                            Id = new Guid("aaaa2222-2222-2222-2222-222222222222"),
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            Description = "Tek hat ve elektrik proje dosyaları",
-                            Icon = "pi pi-sitemap",
-                            IsActive = true,
-                            IsSystem = true,
-                            Key = "ElectricalProject",
-                            Name = "Tek Hat",
-                            SortOrder = 20
-                        },
-                        new
-                        {
-                            Id = new Guid("aaaa3333-3333-3333-3333-333333333333"),
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            Description = "Yüklenen teknik proje dosyaları",
-                            Icon = "pi pi-file",
-                            IsActive = true,
-                            IsSystem = true,
-                            Key = "PanelDocument",
-                            Name = "Proje",
-                            SortOrder = 30
-                        });
                 });
 
             modelBuilder.Entity("PanoLogger.Domain.MaintenanceReports.MaintenanceReport", b =>

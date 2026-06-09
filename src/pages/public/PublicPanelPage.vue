@@ -124,6 +124,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { apiClient } from '@/api/client';
 import { apiEndpoints } from '@/api/endpoints';
+import { defaultPanelFileCategories, getPanelFileCategoryDefinition, type PanelFileCategoryDefinition } from '@/constants/file-categories';
 import type { PublicPanelFileResponse, PublicPanelResponse } from '@/types/public-panel';
 
 type PublicDocumentCard = {
@@ -154,35 +155,33 @@ const panelSubtitle = computed(() => {
 
 const previewUrl = computed(() => (previewFile.value ? resolveApiUrl(previewFile.value.viewUrl) : ''));
 
-const documentCards = computed<PublicDocumentCard[]>(() => [
-  {
-    key: 'electrical-project',
-    category: 'ElectricalProject',
-    title: 'Elektrik Projesi',
-    description: 'Tek hat ve proje dosyalari',
-    icon: 'pi pi-sitemap',
-    count: publicPanel.value?.documents.electricalProjectCount ?? 0,
-    files: filesByCategory('ElectricalProject'),
-  },
-  {
-    key: 'maintenance-report',
-    category: 'MaintenanceReport',
-    title: 'Bakım Raporu',
-    description: 'Periyodik bakım kayıtları',
-    icon: 'pi pi-wrench',
-    count: publicPanel.value?.documents.maintenanceReportCount ?? 0,
-    files: filesByCategory('MaintenanceReport'),
-  },
-  {
-    key: 'panel-documents',
-    category: 'PanelDocument',
-    title: 'Pano Dokumanlari',
-    description: 'Yuklenen teknik dosyalar',
-    icon: 'pi pi-file',
-    count: publicPanel.value?.documents.panelDocumentCount ?? 0,
-    files: filesByCategory('PanelDocument'),
-  },
-]);
+const documentCards = computed<PublicDocumentCard[]>(() => (
+  getVisibleCategories().map((category) => {
+    const files = filesByCategory(category.key);
+
+    return {
+      key: category.key,
+      category: category.key,
+      title: category.title,
+      description: category.description,
+      icon: category.icon,
+      count: files.length,
+      files,
+    };
+  })
+));
+
+function getVisibleCategories(): PanelFileCategoryDefinition[] {
+  const categories = new Map(defaultPanelFileCategories.map((category) => [category.key, category]));
+
+  for (const file of publicPanel.value?.documents.files ?? []) {
+    if (!categories.has(file.category)) {
+      categories.set(file.category, getPanelFileCategoryDefinition(file.category));
+    }
+  }
+
+  return [...categories.values()];
+}
 
 watch(panelCode, loadPanel, { immediate: true });
 watch(previewFile, (file) => {

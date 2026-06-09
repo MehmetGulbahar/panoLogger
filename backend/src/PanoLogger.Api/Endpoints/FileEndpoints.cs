@@ -29,7 +29,7 @@ public static class FileEndpoints
                 .Select(file => new PanelFileResponse(
                     file.Id,
                     file.PanelId,
-                    file.Category.ToString(),
+                    file.Category,
                     file.FileName,
                     file.ContentType,
                     file.SizeBytes,
@@ -53,7 +53,7 @@ public static class FileEndpoints
                 throw new NotFoundException($"Panel '{panelId}' was not found.");
             }
 
-            var parsedCategory = ParseCategory(category);
+            var parsedCategory = await ParseCategoryAsync(dbContext, category, cancellationToken);
             var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
             var storagePath = $"panels/{panelId:D}/{parsedCategory}/{Guid.NewGuid():N}{extension}";
 
@@ -88,7 +88,7 @@ public static class FileEndpoints
                 new PanelFileResponse(
                     panelFile.Id,
                     panelFile.PanelId,
-                    panelFile.Category.ToString(),
+                    panelFile.Category,
                     panelFile.FileName,
                     panelFile.ContentType,
                     panelFile.SizeBytes,
@@ -152,11 +152,27 @@ public static class FileEndpoints
         return app;
     }
 
-    private static PanelFileCategory ParseCategory(string? category)
+    private static async Task<string> ParseCategoryAsync(
+        PanoLoggerDbContext dbContext,
+        string? category,
+        CancellationToken cancellationToken)
     {
-        return Enum.TryParse<PanelFileCategory>(category, true, out var parsedCategory)
-            ? parsedCategory
-            : PanelFileCategory.PanelDocument;
+        var requestedCategory = category?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(requestedCategory)
+            && await dbContext.PanelFileCategories.AnyAsync(item => item.Key == requestedCategory && item.IsActive, cancellationToken))
+        {
+            return requestedCategory;
+        }
+
+        var defaultCategory = await dbContext.PanelFileCategories
+            .AsNoTracking()
+            .Where(item => item.IsActive)
+            .OrderBy(item => item.SortOrder)
+            .Select(item => item.Key)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return defaultCategory ?? "PanelDocument";
     }
 }
 

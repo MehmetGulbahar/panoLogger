@@ -16,6 +16,7 @@ public sealed class PanoLoggerDbContext(DbContextOptions<PanoLoggerDbContext> op
     public DbSet<Facility> Facilities => Set<Facility>();
     public DbSet<Panel> Panels => Set<Panel>();
     public DbSet<PanelFile> PanelFiles => Set<PanelFile>();
+    public DbSet<PanelFileCategory> PanelFileCategories => Set<PanelFileCategory>();
     public DbSet<MaintenanceReport> MaintenanceReports => Set<MaintenanceReport>();
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();

@@ -12,6 +12,7 @@ export interface PublicPanelDocumentsResponse {
   electricalProjectCount: number;
   maintenanceReportCount: number;
   panelDocumentCount: number;
+  categoryCounts: Record<string, number>;
   files: PublicPanelFileResponse[];
 }
 

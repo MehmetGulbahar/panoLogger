@@ -103,11 +103,16 @@ public sealed class SupabaseStorageService(
 
     private string BuildSignedUrl(string signedUrl)
     {
-        if (signedUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        if (Uri.TryCreate(signedUrl, UriKind.Absolute, out var absoluteUri))
         {
-            return signedUrl;
+            return BuildSignedUrlPath(absoluteUri.PathAndQuery);
         }
 
+        return BuildSignedUrlPath(signedUrl);
+    }
+
+    private string BuildSignedUrlPath(string signedUrl)
+    {
         var normalizedPath = signedUrl.StartsWith("/", StringComparison.Ordinal)
             ? signedUrl
             : $"/{signedUrl}";

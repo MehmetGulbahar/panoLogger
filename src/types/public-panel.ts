@@ -8,11 +8,20 @@ export interface PublicPanelFileResponse {
   downloadUrl: string;
 }
 
+export interface PublicPanelFileCategoryResponse {
+  key: string;
+  name: string;
+  description: string;
+  icon: string;
+  sortOrder: number;
+}
+
 export interface PublicPanelDocumentsResponse {
   electricalProjectCount: number;
   maintenanceReportCount: number;
   panelDocumentCount: number;
   categoryCounts: Record<string, number>;
+  categories: PublicPanelFileCategoryResponse[];
   files: PublicPanelFileResponse[];
 }
 

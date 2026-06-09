@@ -174,6 +174,17 @@ const documentCards = computed<PublicDocumentCard[]>(() => (
 function getVisibleCategories(): PanelFileCategoryDefinition[] {
   const categories = new Map(defaultPanelFileCategories.map((category) => [category.key, category]));
 
+  for (const category of publicPanel.value?.documents.categories ?? []) {
+    categories.set(category.key, {
+      key: category.key,
+      label: category.name,
+      title: category.name,
+      description: category.description,
+      icon: category.icon,
+      sortOrder: category.sortOrder,
+    });
+  }
+
   for (const file of publicPanel.value?.documents.files ?? []) {
     if (!categories.has(file.category)) {
       categories.set(file.category, getPanelFileCategoryDefinition(file.category));

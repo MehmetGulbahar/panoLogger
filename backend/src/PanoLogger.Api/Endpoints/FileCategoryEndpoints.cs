@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Claims;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using PanoLogger.Api.Authorization;
@@ -10,21 +11,36 @@ namespace PanoLogger.Api.Endpoints;
 
 public static class FileCategoryEndpoints
 {
+    private static readonly DefaultFileCategory[] DefaultCategories =
+    [
+        new("MaintenanceReport", "Bakım", "Periyodik bakım kayıtları", "pi pi-wrench", 10),
+        new("ElectricalProject", "Tek Hat", "Tek hat ve elektrik proje dosyaları", "pi pi-sitemap", 20),
+        new("PanelDocument", "Proje", "Yüklenen teknik proje dosyaları", "pi pi-file", 30),
+    ];
+
     public static IEndpointRouteBuilder MapFileCategoryEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/file-categories")
             .WithTags("Panel File Categories")
             .RequireAuthorization();
 
-        group.MapGet("/", async (PanoLoggerDbContext dbContext, CancellationToken cancellationToken) =>
+        group.MapGet("/panels/{panelId:guid}", async (
+            Guid panelId,
+            ClaimsPrincipal principal,
+            PanoLoggerDbContext dbContext,
+            CancellationToken cancellationToken) =>
         {
+            await EnsurePanelAccessAsync(panelId, principal, dbContext, cancellationToken);
+            await EnsureDefaultCategoriesAsync(panelId, dbContext, cancellationToken);
+
             var categories = await dbContext.PanelFileCategories
                 .AsNoTracking()
-                .Where(category => category.IsActive)
+                .Where(category => category.PanelId == panelId && category.IsActive)
                 .OrderBy(category => category.SortOrder)
                 .ThenBy(category => category.Name)
                 .Select(category => new FileCategoryResponse(
                     category.Id,
+                    category.PanelId,
                     category.Key,
                     category.Name,
                     category.Description,
@@ -33,28 +49,39 @@ public static class FileCategoryEndpoints
                     category.IsSystem))
                 .ToArrayAsync(cancellationToken);
 
-            return Results.Ok(categories);
+            return Results.Ok(categories
+                .GroupBy(category => category.Key, StringComparer.Ordinal)
+                .Select(group => group.First())
+                .ToArray());
         })
-        .WithName("GetFileCategories");
+        .WithName("GetPanelFileCategories");
 
-        group.MapPost("/", async (
+        group.MapPost("/panels/{panelId:guid}", async (
+            Guid panelId,
             UpsertFileCategoryRequest request,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             CancellationToken cancellationToken) =>
         {
+            await EnsurePanelAccessAsync(panelId, principal, dbContext, cancellationToken);
+            await EnsureDefaultCategoriesAsync(panelId, dbContext, cancellationToken);
+
             var name = NormalizeName(request.Name);
             var key = NormalizeKey(request.Key, name);
-            var description = NormalizeDescription(request.Description);
+            var description = NormalizeDescription(request.Description, name);
             var icon = NormalizeIcon(request.Icon);
-            var sortOrder = request.SortOrder ?? await GetNextSortOrderAsync(dbContext, cancellationToken);
+            var sortOrder = request.SortOrder ?? await GetNextSortOrderAsync(panelId, dbContext, cancellationToken);
 
-            if (await dbContext.PanelFileCategories.AnyAsync(category => category.Key == key, cancellationToken))
+            if (await dbContext.PanelFileCategories.AnyAsync(
+                category => category.PanelId == panelId && category.Key == key,
+                cancellationToken))
             {
-                throw new ValidationException("Bu kategori anahtarı zaten kullanılıyor.");
+                throw new ValidationException("Bu panelde aynı kategori zaten var.");
             }
 
             var category = new PanelFileCategory
             {
+                PanelId = panelId,
                 Key = key,
                 Name = name,
                 Description = description,
@@ -70,19 +97,21 @@ public static class FileCategoryEndpoints
             return Results.Created($"/api/file-categories/{category.Id}", ToResponse(category));
         })
         .RequireAuthorization(AuthorizationPolicies.ManageFiles)
-        .WithName("CreateFileCategory");
+        .WithName("CreatePanelFileCategory");
 
         group.MapPut("/{categoryId:guid}", async (
             Guid categoryId,
             UpsertFileCategoryRequest request,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             CancellationToken cancellationToken) =>
         {
             var category = await dbContext.PanelFileCategories.FirstOrDefaultAsync(item => item.Id == categoryId, cancellationToken)
                 ?? throw new NotFoundException("Kategori bulunamadı.");
+            await EnsurePanelAccessAsync(category.PanelId, principal, dbContext, cancellationToken);
 
             category.Name = NormalizeName(request.Name);
-            category.Description = NormalizeDescription(request.Description);
+            category.Description = NormalizeDescription(request.Description, category.Name);
             category.Icon = NormalizeIcon(request.Icon);
             category.SortOrder = request.SortOrder ?? category.SortOrder;
             category.IsActive = true;
@@ -93,17 +122,21 @@ public static class FileCategoryEndpoints
             return Results.Ok(ToResponse(category));
         })
         .RequireAuthorization(AuthorizationPolicies.ManageFiles)
-        .WithName("UpdateFileCategory");
+        .WithName("UpdatePanelFileCategory");
 
         group.MapDelete("/{categoryId:guid}", async (
             Guid categoryId,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             CancellationToken cancellationToken) =>
         {
             var category = await dbContext.PanelFileCategories.FirstOrDefaultAsync(item => item.Id == categoryId, cancellationToken)
                 ?? throw new NotFoundException("Kategori bulunamadı.");
+            await EnsurePanelAccessAsync(category.PanelId, principal, dbContext, cancellationToken);
 
-            var fileCount = await dbContext.PanelFiles.CountAsync(file => file.Category == category.Key, cancellationToken);
+            var fileCount = await dbContext.PanelFiles.CountAsync(
+                file => file.PanelId == category.PanelId && file.Category == category.Key,
+                cancellationToken);
             if (fileCount > 0)
             {
                 throw new ValidationException("Bu kategoride dosya var. Önce dosyaları taşıyın veya silin.");
@@ -115,15 +148,68 @@ public static class FileCategoryEndpoints
             return Results.NoContent();
         })
         .RequireAuthorization(AuthorizationPolicies.ManageFiles)
-        .WithName("DeleteFileCategory");
+        .WithName("DeletePanelFileCategory");
 
         return app;
+    }
+
+    public static async Task EnsureDefaultCategoriesAsync(
+        Guid panelId,
+        PanoLoggerDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var existingKeys = await dbContext.PanelFileCategories
+            .Where(category => category.PanelId == panelId)
+            .Select(category => category.Key)
+            .ToArrayAsync(cancellationToken);
+        var existingKeySet = existingKeys.ToHashSet(StringComparer.Ordinal);
+
+        foreach (var defaultCategory in DefaultCategories)
+        {
+            if (existingKeySet.Contains(defaultCategory.Key))
+            {
+                continue;
+            }
+
+            dbContext.PanelFileCategories.Add(new PanelFileCategory
+            {
+                PanelId = panelId,
+                Key = defaultCategory.Key,
+                Name = defaultCategory.Name,
+                Description = defaultCategory.Description,
+                Icon = defaultCategory.Icon,
+                SortOrder = defaultCategory.SortOrder,
+                IsSystem = true,
+                IsActive = true,
+            });
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task EnsurePanelAccessAsync(
+        Guid panelId,
+        ClaimsPrincipal principal,
+        PanoLoggerDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var panel = await (
+            from panelItem in dbContext.Panels.AsNoTracking()
+            join facility in dbContext.Facilities.AsNoTracking() on panelItem.FacilityId equals facility.Id
+            where panelItem.Id == panelId
+            select new { facility.CompanyId }
+        ).FirstOrDefaultAsync(cancellationToken)
+        ?? throw new NotFoundException($"Panel '{panelId}' was not found.");
+
+        var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
+        tenant.EnsureCompany(panel.CompanyId);
     }
 
     private static FileCategoryResponse ToResponse(PanelFileCategory category)
     {
         return new FileCategoryResponse(
             category.Id,
+            category.PanelId,
             category.Key,
             category.Name,
             category.Description,
@@ -132,9 +218,13 @@ public static class FileCategoryEndpoints
             category.IsSystem);
     }
 
-    private static async Task<int> GetNextSortOrderAsync(PanoLoggerDbContext dbContext, CancellationToken cancellationToken)
+    private static async Task<int> GetNextSortOrderAsync(
+        Guid panelId,
+        PanoLoggerDbContext dbContext,
+        CancellationToken cancellationToken)
     {
         var maxSortOrder = await dbContext.PanelFileCategories
+            .Where(category => category.PanelId == panelId)
             .Select(category => (int?)category.SortOrder)
             .MaxAsync(cancellationToken);
 
@@ -152,10 +242,10 @@ public static class FileCategoryEndpoints
         return normalizedName.Length <= 120 ? normalizedName : normalizedName[..120];
     }
 
-    private static string NormalizeDescription(string? description)
+    private static string NormalizeDescription(string? description, string categoryName)
     {
         var normalizedDescription = string.IsNullOrWhiteSpace(description)
-            ? "Panel dosyaları"
+            ? $"{categoryName} dosyaları"
             : description.Trim();
 
         return normalizedDescription.Length <= 240 ? normalizedDescription : normalizedDescription[..240];
@@ -199,10 +289,13 @@ public static class FileCategoryEndpoints
 
         return normalizedKey.Length <= 80 ? normalizedKey : normalizedKey[..80].Trim('-');
     }
+
+    private sealed record DefaultFileCategory(string Key, string Name, string Description, string Icon, int SortOrder);
 }
 
 public sealed record FileCategoryResponse(
     Guid Id,
+    Guid PanelId,
     string Key,
     string Name,
     string Description,

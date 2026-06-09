@@ -53,7 +53,7 @@ public static class FileEndpoints
                 throw new NotFoundException($"Panel '{panelId}' was not found.");
             }
 
-            var parsedCategory = await ParseCategoryAsync(dbContext, category, cancellationToken);
+            var parsedCategory = await ParseCategoryAsync(dbContext, panelId, category, cancellationToken);
             var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
             var storagePath = $"panels/{panelId:D}/{parsedCategory}/{Guid.NewGuid():N}{extension}";
 
@@ -154,20 +154,24 @@ public static class FileEndpoints
 
     private static async Task<string> ParseCategoryAsync(
         PanoLoggerDbContext dbContext,
+        Guid panelId,
         string? category,
         CancellationToken cancellationToken)
     {
+        await FileCategoryEndpoints.EnsureDefaultCategoriesAsync(panelId, dbContext, cancellationToken);
         var requestedCategory = category?.Trim();
 
         if (!string.IsNullOrWhiteSpace(requestedCategory)
-            && await dbContext.PanelFileCategories.AnyAsync(item => item.Key == requestedCategory && item.IsActive, cancellationToken))
+            && await dbContext.PanelFileCategories.AnyAsync(
+                item => item.PanelId == panelId && item.Key == requestedCategory && item.IsActive,
+                cancellationToken))
         {
             return requestedCategory;
         }
 
         var defaultCategory = await dbContext.PanelFileCategories
             .AsNoTracking()
-            .Where(item => item.IsActive)
+            .Where(item => item.PanelId == panelId && item.IsActive)
             .OrderBy(item => item.SortOrder)
             .Select(item => item.Key)
             .FirstOrDefaultAsync(cancellationToken);

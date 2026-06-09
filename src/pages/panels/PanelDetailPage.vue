@@ -186,15 +186,20 @@ watch(panelId, async (nextPanelId) => {
 }, { immediate: true });
 
 async function loadFileCategories() {
+  if (!panelId.value) {
+    fileTabs.value = [...defaultPanelFileCategories];
+    return;
+  }
+
   try {
-    const { data } = await apiClient.get<FileCategoryResponse[]>(apiEndpoints.fileCategories);
-    fileTabs.value = data.map(mapCategoryResponse);
+    const { data } = await apiClient.get<FileCategoryResponse[]>(`${apiEndpoints.fileCategories}/panels/${panelId.value}`);
+    fileTabs.value = uniqueCategories(data.map(mapCategoryResponse));
 
     if (!fileTabs.value.some((category) => category.key === activeFileTab.value)) {
       activeFileTab.value = fileTabs.value[0]?.key ?? 'MaintenanceReport';
     }
   } catch {
-    fileTabs.value = [...defaultPanelFileCategories];
+    fileTabs.value = uniqueCategories([...defaultPanelFileCategories]);
   }
 }
 
@@ -342,7 +347,7 @@ function getCategoryLabel(category: string) {
 async function createCategory() {
   const name = newCategoryName.value.trim();
 
-  if (!name) {
+  if (!name || !panelId.value) {
     return;
   }
 
@@ -350,7 +355,7 @@ async function createCategory() {
   fileError.value = '';
 
   try {
-    const { data } = await apiClient.post<FileCategoryResponse>(apiEndpoints.fileCategories, {
+    const { data } = await apiClient.post<FileCategoryResponse>(`${apiEndpoints.fileCategories}/panels/${panelId.value}`, {
       name,
       description: `${name} dosyalari`,
       icon: 'pi pi-folder',
@@ -435,6 +440,21 @@ function mapCategoryResponse(category: FileCategoryResponse): PanelFileCategoryD
   };
 }
 
+function uniqueCategories(categories: PanelFileCategoryDefinition[]) {
+  const categoriesByKey = new Map<string, PanelFileCategoryDefinition>();
+
+  for (const category of categories) {
+    if (!categoriesByKey.has(category.key)) {
+      categoriesByKey.set(category.key, category);
+    }
+  }
+
+  return [...categoriesByKey.values()].sort((first, second) => (
+    (first.sortOrder ?? 0) - (second.sortOrder ?? 0)
+    || first.label.localeCompare(second.label)
+  ));
+}
+
 function getApiError(error: unknown, fallback: string) {
   return axios.isAxiosError(error) && typeof error.response?.data?.detail === 'string'
     ? error.response.data.detail
@@ -443,6 +463,7 @@ function getApiError(error: unknown, fallback: string) {
 
 type FileCategoryResponse = {
   id: string;
+  panelId: string;
   key: string;
   name: string;
   description: string;

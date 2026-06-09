@@ -14,6 +14,7 @@ public sealed class PanelFile : Entity
 
 public sealed class PanelFileCategory : Entity
 {
+    public required Guid PanelId { get; init; }
     public required string Key { get; init; }
     public required string Name { get; set; }
     public required string Description { get; set; }

@@ -19,6 +19,7 @@ public static class PublicPanelEndpoints
         {
             var panel = await GetPublicPanelAsync(panelCode, dbContext, cancellationToken)
                 ?? throw new NotFoundException($"Panel code '{panelCode}' was not found.");
+            await FileCategoryEndpoints.EnsureDefaultCategoriesAsync(panel.PanelId, dbContext, cancellationToken);
 
             var storedFiles = await dbContext.PanelFiles
                 .AsNoTracking()
@@ -37,6 +38,18 @@ public static class PublicPanelEndpoints
                     $"/api/public/panels/{panel.PanelCode}/files/{file.Id}/view",
                     $"/api/public/panels/{panel.PanelCode}/files/{file.Id}/download"))
                 .ToList();
+            var categories = await dbContext.PanelFileCategories
+                .AsNoTracking()
+                .Where(category => category.PanelId == panel.PanelId && category.IsActive)
+                .OrderBy(category => category.SortOrder)
+                .ThenBy(category => category.Name)
+                .Select(category => new PublicPanelFileCategoryResponse(
+                    category.Key,
+                    category.Name,
+                    category.Description,
+                    category.Icon,
+                    category.SortOrder))
+                .ToArrayAsync(cancellationToken);
 
             return Results.Ok(panel with
             {
@@ -45,6 +58,7 @@ public static class PublicPanelEndpoints
                     files.Count(file => file.Category == "MaintenanceReport"),
                     files.Count(file => file.Category == "PanelDocument"),
                     files.GroupBy(file => file.Category).ToDictionary(group => group.Key, group => group.Count()),
+                    categories,
                     files)
             });
         })
@@ -113,7 +127,7 @@ public static class PublicPanelEndpoints
                 panelResult.CompanyId,
                 panelResult.CompanyName,
                 panelResult.ProjectName,
-                new PublicPanelDocumentsResponse(0, 0, 0, new Dictionary<string, int>(), Array.Empty<PublicPanelFileResponse>()));
+                new PublicPanelDocumentsResponse(0, 0, 0, new Dictionary<string, int>(), Array.Empty<PublicPanelFileCategoryResponse>(), Array.Empty<PublicPanelFileResponse>()));
     }
 
     private static async Task<IResult> GetPublicPanelFileAsync(
@@ -160,7 +174,15 @@ public sealed record PublicPanelDocumentsResponse(
     int MaintenanceReportCount,
     int PanelDocumentCount,
     IReadOnlyDictionary<string, int> CategoryCounts,
+    IReadOnlyCollection<PublicPanelFileCategoryResponse> Categories,
     IReadOnlyCollection<PublicPanelFileResponse> Files);
+
+public sealed record PublicPanelFileCategoryResponse(
+    string Key,
+    string Name,
+    string Description,
+    string Icon,
+    int SortOrder);
 
 public sealed record PublicPanelFileResponse(
     Guid Id,

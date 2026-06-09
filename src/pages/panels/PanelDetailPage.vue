@@ -167,7 +167,7 @@ import { useAuthStore, useHierarchyStore } from '@/stores';
 import { useFileStore } from '@/stores/file-store';
 import { useModalStore } from '@/stores/modal-store';
 import { appRoles } from '@/utils/authorization';
-import type { FileDownloadResponse, PanelFileResponse } from '@/types/files';
+import type { PanelFileResponse } from '@/types/files';
 import type { GeneratedQrCodeResponse, QrCodeResponse } from '@/types/qr';
 
 const route = useRoute();
@@ -240,6 +240,7 @@ watch(previewFile, (file) => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', handlePreviewKeydown);
+  revokePreviewUrl();
 });
 
 async function loadFileCategories() {
@@ -350,10 +351,20 @@ async function downloadFile(item: PanelFileResponse) {
   fileError.value = '';
 
   try {
-    const { data } = await apiClient.get<FileDownloadResponse>(`${apiEndpoints.files}/${item.id}/download`);
-    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+    const { data } = await apiClient.get<Blob>(`${apiEndpoints.files}/${item.id}/view`, {
+      responseType: 'blob',
+    });
+    const url = URL.createObjectURL(data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = item.fileName;
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   } catch (error) {
-    fileError.value = getApiError(error, 'Dosya indirme baglantisi olusturulamadi.');
+    fileError.value = getApiError(error, 'Dosya indirilemedi.');
   }
 }
 
@@ -362,9 +373,12 @@ async function viewFile(item: PanelFileResponse) {
   previewLoadingFileId.value = item.id;
 
   try {
-    const { data } = await apiClient.get<FileDownloadResponse>(`${apiEndpoints.files}/${item.id}/download`);
+    const { data } = await apiClient.get<Blob>(`${apiEndpoints.files}/${item.id}/view`, {
+      responseType: 'blob',
+    });
+    revokePreviewUrl();
     previewFile.value = item;
-    previewUrl.value = data.signedUrl;
+    previewUrl.value = URL.createObjectURL(data);
   } catch (error) {
     fileError.value = getApiError(error, 'Dosya onizleme baglantisi olusturulamadi.');
   } finally {
@@ -374,6 +388,14 @@ async function viewFile(item: PanelFileResponse) {
 
 function closePreview() {
   previewFile.value = null;
+  revokePreviewUrl();
+}
+
+function revokePreviewUrl() {
+  if (previewUrl.value) {
+    URL.revokeObjectURL(previewUrl.value);
+  }
+
   previewUrl.value = '';
 }
 

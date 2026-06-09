@@ -116,6 +116,23 @@ public static class FileEndpoints
         })
         .WithName("GetPanelFileDownloadUrl");
 
+        group.MapGet("/{fileId:guid}/view", async (
+            Guid fileId,
+            ClaimsPrincipal principal,
+            PanoLoggerDbContext dbContext,
+            IFileStorageService fileStorageService,
+            CancellationToken cancellationToken) =>
+        {
+            var file = await GetFileForAccessAsync(fileId, principal, dbContext, cancellationToken);
+            var storedFile = await fileStorageService.DownloadAsync(file.StoragePath, cancellationToken);
+
+            return Results.File(
+                storedFile.Content,
+                file.ContentType,
+                enableRangeProcessing: true);
+        })
+        .WithName("ViewPanelFile");
+
         group.MapDelete("/{fileId:guid}", async (
             Guid fileId,
             ClaimsPrincipal principal,
@@ -123,23 +140,9 @@ public static class FileEndpoints
             IFileStorageService fileStorageService,
             CancellationToken cancellationToken) =>
         {
-            var file = await (
-                from panelFile in dbContext.PanelFiles
-                join panel in dbContext.Panels on panelFile.PanelId equals panel.Id
-                join facility in dbContext.Facilities on panel.FacilityId equals facility.Id
-                where panelFile.Id == fileId
-                select new
-                {
-                    PanelFile = panelFile,
-                    facility.CompanyId,
-                }
-            ).FirstOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException($"File '{fileId}' was not found.");
+            var file = await GetFileForAccessAsync(fileId, principal, dbContext, cancellationToken);
 
-            var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
-            tenant.EnsureCompany(file.CompanyId);
-
-            await fileStorageService.DeleteAsync(file.PanelFile.StoragePath, cancellationToken);
+            await fileStorageService.DeleteAsync(file.StoragePath, cancellationToken);
 
             dbContext.PanelFiles.Remove(file.PanelFile);
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -150,6 +153,31 @@ public static class FileEndpoints
         .WithName("DeletePanelFile");
 
         return app;
+    }
+
+    private static async Task<AccessiblePanelFile> GetFileForAccessAsync(
+        Guid fileId,
+        ClaimsPrincipal principal,
+        PanoLoggerDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var file = await (
+            from panelFile in dbContext.PanelFiles
+            join panel in dbContext.Panels on panelFile.PanelId equals panel.Id
+            join facility in dbContext.Facilities on panel.FacilityId equals facility.Id
+            where panelFile.Id == fileId
+            select new AccessiblePanelFile(
+                panelFile,
+                panelFile.StoragePath,
+                panelFile.ContentType,
+                facility.CompanyId)
+        ).FirstOrDefaultAsync(cancellationToken)
+        ?? throw new NotFoundException($"File '{fileId}' was not found.");
+
+        var tenant = await TenantAccessResolver.ResolveAsync(principal, dbContext, cancellationToken);
+        tenant.EnsureCompany(file.CompanyId);
+
+        return file;
     }
 
     private static async Task<string> ParseCategoryAsync(
@@ -188,3 +216,9 @@ public sealed record PanelFileResponse(
     string ContentType,
     long SizeBytes,
     DateTimeOffset CreatedAtUtc);
+
+internal sealed record AccessiblePanelFile(
+    PanelFile PanelFile,
+    string StoragePath,
+    string ContentType,
+    Guid CompanyId);

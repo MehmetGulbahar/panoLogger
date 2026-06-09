@@ -26,11 +26,12 @@
             <button
               class="accordion-toggle"
               type="button"
+              :title="`${company.name} · ${company.projectName}`"
               :aria-expanded="isCompanyExpanded(company.id)"
               @click="toggleCompany(company.id)"
             >
               <span class="app-sidebar__icon-wrap"><i class="pi pi-folder"></i></span>
-              <span class="app-sidebar__label">{{ company.projectName }}</span>
+              <span class="app-sidebar__label">{{ company.name }}</span>
               <i :class="['pi accordion-chevron', isCompanyExpanded(company.id) ? 'pi-chevron-down' : 'pi-chevron-right']" aria-hidden="true"></i>
             </button>
             <RouterLink

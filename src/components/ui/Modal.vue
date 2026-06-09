@@ -58,14 +58,20 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKey));
 </script>
 
 <style scoped>
-.ui-modal__overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.4); display:flex; align-items:center; justify-content:center; z-index: 1200 }
-.ui-modal { background: var(--app-surface); border-radius: 10px; min-width: 320px; max-width: 920px; width: 90%; box-shadow: var(--shadow-3); outline: none; opacity: 1; transform: translateY(0) scale(1) }
-.ui-modal__header { display:flex; align-items:center; justify-content:space-between; padding:0.8rem 1rem; border-bottom:1px solid var(--app-border) }
+.ui-modal__overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.4); display:flex; align-items:center; justify-content:center; z-index: 1200; padding:1rem }
+.ui-modal { background: var(--app-surface); border-radius: 10px; min-width: min(320px, 100%); max-width: 920px; width:min(90vw, 920px); max-height:calc(100vh - 2rem); display:flex; flex-direction:column; overflow:hidden; box-shadow: var(--shadow-3); outline: none; opacity: 1; transform: translateY(0) scale(1) }
+.ui-modal__header { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:0.75rem; padding:0.8rem 1rem; border-bottom:1px solid var(--app-border) }
 .ui-modal__header h3 { margin:0; font-size:0.95rem; line-height:1.25 }
-.ui-modal__body { padding:1rem; font-size:0.8125rem; line-height:1.4 }
-.ui-modal__footer { padding:0.8rem 1rem; border-top:1px solid var(--app-border); display:flex; justify-content:flex-end; gap:0.5rem }
+.ui-modal__body { flex:1 1 auto; min-height:0; overflow:auto; padding:1rem; font-size:0.8125rem; line-height:1.4 }
+.ui-modal__footer { flex:0 0 auto; padding:0.8rem 1rem; border-top:1px solid var(--app-border); display:flex; justify-content:flex-end; gap:0.5rem; background:var(--app-surface) }
 .ui-modal__close { display:inline-flex; align-items:center; justify-content:center; width:2rem; height:2rem; background:transparent; border:none; border-radius:8px; color:var(--app-text-muted); cursor:pointer }
 .ui-modal__close .pi { font-size:0.85rem }
+
+@media (max-width: 620px) {
+  .ui-modal__overlay { align-items:stretch; padding:0.65rem }
+  .ui-modal { width:100%; max-height:calc(100vh - 1.3rem) }
+  .ui-modal__footer { flex-wrap:wrap }
+}
 
 /* transition */
 .ui-modal-fade-enter-active, .ui-modal-fade-leave-active { transition: opacity 180ms ease, transform 180ms ease }

@@ -2,12 +2,12 @@
   <Modal title="Sistemi Düzenle" @close="$emit('close')">
     <form id="edit-company-form" class="company-form" @submit.prevent="submit">
       <label class="field">
-        <span>Sistem Adı</span>
-        <input v-model="form.projectName" required />
-      </label>
-      <label class="field">
         <span>Şirket Adı</span>
         <input v-model="form.companyName" required />
+      </label>
+      <label class="field">
+        <span>Proje Adı</span>
+        <input v-model="form.projectName" required />
       </label>
       <label class="field">
         <span>Şirket Kodu</span>

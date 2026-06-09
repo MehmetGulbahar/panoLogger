@@ -42,8 +42,8 @@ onMounted(() => hierarchyStore.load());
 import { useRouter } from 'vue-router';
 
 const baseColumns = [
-  { key: 'projectName', label: 'Proje' },
   { key: 'name', label: 'Şirket' },
+  { key: 'projectName', label: 'Proje' },
   { key: 'companyCode', label: 'Kod' },
   { key: 'contactEmail', label: 'İletişim' },
   { key: 'taxNumber', label: 'Vergi No' },

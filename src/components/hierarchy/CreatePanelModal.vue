@@ -5,7 +5,7 @@
         <span>Şirket / Sistem</span>
         <select v-model="form.companyId" required @change="form.facilityId = ''">
           <option value="" disabled>Şirket seçin</option>
-          <option v-for="company in store.companies" :key="company.id" :value="company.id">{{ company.projectName }} · {{ company.name }}</option>
+          <option v-for="company in store.companies" :key="company.id" :value="company.id">{{ company.name }} · {{ company.projectName }}</option>
         </select>
       </label>
       <label class="field">

@@ -5,18 +5,18 @@
         <div class="form-section__head">
           <i class="pi pi-folder" aria-hidden="true"></i>
           <div>
-            <h4>Sistem ve Şirket</h4>
-            <p>Hiyerarşide görünecek ana proje bilgileri.</p>
+            <h4>Şirket ve Proje</h4>
+            <p>Hiyerarşide görünecek ana şirket ve proje bilgileri.</p>
           </div>
         </div>
         <div class="form-grid">
           <label class="field">
-            <span>Sistem Adı</span>
-            <input v-model="form.projectName" required placeholder="Örn. AVM Elektrik Yönetimi" />
-          </label>
-          <label class="field">
             <span>Şirket Adı</span>
             <input v-model="form.companyName" required placeholder="Örn. Enerji Teknolojileri A.Ş." />
+          </label>
+          <label class="field">
+            <span>Proje Adı</span>
+            <input v-model="form.projectName" required placeholder="Örn. AVM Elektrik Yönetimi" />
           </label>
           <label class="field">
             <span>Şirket Kodu</span>
@@ -154,19 +154,19 @@ async function submit() {
 </script>
 
 <style scoped>
-.system-form { display:grid; gap:1rem; width:min(100%, 44rem) }
-.form-section { display:grid; gap:0.7rem; padding-bottom:1rem; border-bottom:1px solid var(--app-border) }
+.system-form { display:grid; gap:0.85rem; width:min(100%, 44rem) }
+.form-section { display:grid; gap:0.6rem; padding-bottom:0.85rem; border-bottom:1px solid var(--app-border) }
 .form-section:last-of-type { padding-bottom:0; border-bottom:0 }
 .form-section__head { display:flex; align-items:flex-start; gap:0.55rem }
 .form-section__head .pi { margin-top:0.1rem; color:var(--app-primary); font-size:0.9rem }
 .form-section__head h4 { margin:0; font-size:0.8125rem; line-height:1.25 }
 .form-section__head p { margin:0.1rem 0 0; color:var(--app-text-muted); font-size:0.6875rem; line-height:1.3 }
-.form-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:0.65rem }
+.form-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:0.55rem 0.65rem }
 .field { display:grid; gap:0.3rem; min-width:0 }
 .field--wide { grid-column:1 / -1 }
 .field span { color:var(--app-text-muted); font-size:0.6875rem; line-height:1.2 }
 .field input,
-.field textarea { width:100%; border:1px solid var(--app-border); border-radius:7px; background:var(--app-bg); color:var(--app-text); padding:0.55rem 0.65rem; font:inherit; font-size:0.8125rem; outline:none }
+.field textarea { width:100%; border:1px solid var(--app-border); border-radius:7px; background:var(--app-bg); color:var(--app-text); padding:0.5rem 0.65rem; font:inherit; font-size:0.8125rem; outline:none }
 .field textarea { resize:vertical }
 .field input:focus,
 .field textarea:focus { border-color:var(--app-primary); box-shadow:0 0 0 3px rgba(37,99,235,0.1) }
@@ -174,5 +174,6 @@ async function submit() {
 @media (max-width: 620px) {
   .form-grid { grid-template-columns:1fr }
   .field--wide { grid-column:auto }
+  .system-form { gap:0.75rem }
 }
 </style>

@@ -91,6 +91,15 @@
                 <strong>{{ item.fileName }}</strong>
                 <span>{{ getCategoryLabel(item.category) }} - {{ formatFileSize(item.sizeBytes) }}</span>
               </div>
+              <button
+                type="button"
+                class="file-row__preview"
+                title="Goruntule"
+                :disabled="previewLoadingFileId === item.id"
+                @click="viewFile(item)"
+              >
+                <i :class="previewLoadingFileId === item.id ? 'pi pi-spin pi-spinner' : 'pi pi-eye'" aria-hidden="true"></i>
+              </button>
               <button class="file-row__download" type="button" title="Indir" @click="downloadFile(item)">
                 <i class="pi pi-download" aria-hidden="true"></i>
               </button>
@@ -109,12 +118,45 @@
         </div>
       </section>
     </main>
+
+    <Teleport to="body">
+      <div v-if="previewFile" class="preview-backdrop" role="presentation" @click.self="closePreview">
+        <section
+          class="preview-dialog"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="`${previewFile.fileName} dosya onizleme`"
+        >
+          <header class="preview-dialog__header">
+            <div class="preview-dialog__title">
+              <strong>{{ previewFile.fileName }}</strong>
+              <span>{{ getCategoryLabel(previewFile.category) }} - {{ formatFileSize(previewFile.sizeBytes) }}</span>
+            </div>
+            <div class="preview-dialog__actions">
+              <button type="button" class="preview-action" title="Indir" @click="downloadFile(previewFile)">
+                <i class="pi pi-download" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="preview-action" title="Kapat" @click="closePreview">
+                <i class="pi pi-times" aria-hidden="true"></i>
+              </button>
+            </div>
+          </header>
+
+          <iframe
+            v-if="previewUrl"
+            class="preview-dialog__frame"
+            :src="previewUrl"
+            :title="previewFile.fileName"
+          ></iframe>
+        </section>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import axios from 'axios';
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useRoute } from 'vue-router';
 import { apiClient } from '@/api/client';
@@ -174,6 +216,9 @@ const panel = computed(() => {
 const facility = computed(() => hierarchyStore.facilities.find((item) => item.id === panel.value.facilityId) ?? emptyFacility);
 const fileStore = useFileStore();
 const deletingFileIds = ref<Set<string>>(new Set());
+const previewFile = ref<PanelFileResponse | null>(null);
+const previewUrl = ref('');
+const previewLoadingFileId = ref<string | null>(null);
 
 watch(panelId, async (nextPanelId) => {
   panelFiles.value = [];
@@ -184,6 +229,18 @@ watch(panelId, async (nextPanelId) => {
     await loadFiles(nextPanelId);
   }
 }, { immediate: true });
+
+watch(previewFile, (file) => {
+  if (file) {
+    document.addEventListener('keydown', handlePreviewKeydown);
+  } else {
+    document.removeEventListener('keydown', handlePreviewKeydown);
+  }
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handlePreviewKeydown);
+});
 
 async function loadFileCategories() {
   if (!panelId.value) {
@@ -297,6 +354,32 @@ async function downloadFile(item: PanelFileResponse) {
     window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
   } catch (error) {
     fileError.value = getApiError(error, 'Dosya indirme baglantisi olusturulamadi.');
+  }
+}
+
+async function viewFile(item: PanelFileResponse) {
+  fileError.value = '';
+  previewLoadingFileId.value = item.id;
+
+  try {
+    const { data } = await apiClient.get<FileDownloadResponse>(`${apiEndpoints.files}/${item.id}/download`);
+    previewFile.value = item;
+    previewUrl.value = data.signedUrl;
+  } catch (error) {
+    fileError.value = getApiError(error, 'Dosya onizleme baglantisi olusturulamadi.');
+  } finally {
+    previewLoadingFileId.value = null;
+  }
+}
+
+function closePreview() {
+  previewFile.value = null;
+  previewUrl.value = '';
+}
+
+function handlePreviewKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    closePreview();
   }
 }
 
@@ -511,13 +594,28 @@ type FileCategoryResponse = {
 .file-row__copy { display:grid; gap:0.1rem; min-width:0; flex:1 }
 .file-row__copy strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.8125rem }
 .file-row__copy span { color:var(--app-text-muted); font-size:0.6875rem }
+.file-row__preview,
 .file-row__download,
 .file-row__delete { width:2rem; height:2rem; display:grid; place-items:center; border:0; border-radius:6px; background:transparent; cursor:pointer }
+.file-row__preview { color:var(--app-text-muted) }
 .file-row__download { color:var(--app-primary) }
 .file-row__delete { color:#b91c1c }
+.file-row__preview:hover:not(:disabled),
 .file-row__download:hover,
 .file-row__delete:hover:not(:disabled) { background:var(--app-surface-alt) }
+.file-row__preview:disabled,
 .file-row__delete:disabled { opacity:0.6; cursor:wait }
+
+.preview-backdrop { position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center; padding:1rem; background:rgb(15 23 42 / 0.52) }
+.preview-dialog { width:min(100%, 64rem); height:min(86vh, 48rem); display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--app-border); border-radius:10px; background:var(--app-bg); box-shadow:0 24px 70px rgb(15 23 42 / 0.24) }
+.preview-dialog__header { display:flex; align-items:center; justify-content:space-between; gap:0.75rem; padding:0.75rem; border-bottom:1px solid var(--app-border) }
+.preview-dialog__title { display:grid; gap:0.15rem; min-width:0 }
+.preview-dialog__title strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.875rem; line-height:1.25 }
+.preview-dialog__title span { color:var(--app-text-muted); font-size:0.75rem; line-height:1.2 }
+.preview-dialog__actions { display:flex; gap:0.35rem; flex:0 0 auto }
+.preview-action { width:2rem; height:2rem; display:grid; place-items:center; border:1px solid var(--app-border); border-radius:8px; background:var(--app-bg); color:var(--app-text-muted); cursor:pointer }
+.preview-action:hover { border-color:var(--app-primary); color:var(--app-primary); background:var(--primary-50) }
+.preview-dialog__frame { flex:1; width:100%; border:0; background:#f8fafc }
 
 @media (max-width: 760px) {
   .panel-header { flex-direction:column; align-items:flex-start }

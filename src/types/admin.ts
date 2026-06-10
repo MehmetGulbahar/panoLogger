@@ -54,6 +54,10 @@ export interface UpdateAdminUserRequest {
   roles: UserRole[];
 }
 
+export interface ResetAdminUserPasswordRequest {
+  password: string;
+}
+
 export interface CreateAdminRoleRequest {
   name: string;
   description: string;

@@ -90,6 +90,16 @@
                   <i class="pi pi-pencil" aria-hidden="true"></i>
                 </button>
                 <button
+                  class="icon-button"
+                  type="button"
+                  title="Sifre Degistir"
+                  aria-label="Sifre Degistir"
+                  :disabled="isResettingPassword"
+                  @click="openPasswordResetModal(user)"
+                >
+                  <i class="pi pi-key" aria-hidden="true"></i>
+                </button>
+                <button
                   class="icon-button danger-icon-button"
                   type="button"
                   title="Kullanıcıyı Sil"
@@ -300,6 +310,41 @@
         </form>
       </section>
     </div>
+    <div v-if="passwordResetUser" class="modal-backdrop" role="presentation" @click.self="closePasswordResetModal">
+      <section class="user-modal password-modal" role="dialog" aria-modal="true" aria-labelledby="reset-password-title">
+        <div class="section-head compact">
+          <div>
+            <h2 id="reset-password-title">Şifre Değiştir</h2>
+            <p>{{ passwordResetUser.displayName }} için yeni geçici şifre belirleyin.</p>
+          </div>
+          <button class="icon-button" type="button" title="Kapat" aria-label="Kapat" @click="closePasswordResetModal">
+            <i class="pi pi-times" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <form class="admin-form password-form" @submit.prevent="resetUserPassword">
+          <label class="field">
+            <span>Kullanıcı</span>
+            <input :value="passwordResetUser.username" disabled />
+          </label>
+
+          <label class="field">
+            <span>Yeni Şifre</span>
+            <input v-model="passwordResetForm.password" type="text" required placeholder="En az 8 karakter" autocomplete="off" />
+          </label>
+
+          <p class="form-hint">Bu işlem mevcut şifreyi geri almaz; yeni şifre kaydedildikten sonra kullanıcı bu şifreyle giriş yapar.</p>
+
+          <div class="form-actions">
+            <UiButton variant="secondary" type="button" @click="closePasswordResetModal">Vazgeç</UiButton>
+            <UiButton variant="primary" type="submit" :disabled="isResettingPassword || passwordResetForm.password.length < 8">
+              <i :class="isResettingPassword ? 'pi pi-spin pi-spinner' : 'pi pi-key'" aria-hidden="true"></i>
+              Şifreyi Kaydet
+            </UiButton>
+          </div>
+        </form>
+      </section>
+    </div>
   </section>
 </template>
 
@@ -317,6 +362,7 @@ import type {
   AdminUser,
   CreateAdminUserRequest,
   Permission,
+  ResetAdminUserPasswordRequest,
   UpdateAdminUserRequest,
   UserRole,
 } from '@/types';
@@ -341,6 +387,8 @@ const isDeletingUser = ref(false);
 const isSavingRole = ref(false);
 const isDeletingRole = ref(false);
 const isCreateUserOpen = ref(false);
+const isResettingPassword = ref(false);
+const passwordResetUser = ref<AdminUser | null>(null);
 
 const editForm = reactive<UpdateAdminUserRequest>({
   displayName: '',
@@ -357,6 +405,10 @@ const createUserForm = reactive<CreateAdminUserRequest>({
   roles: ['Viewer'],
 });
 
+const passwordResetForm = reactive<ResetAdminUserPasswordRequest>({
+  password: '',
+});
+
 const roleForm = reactive({
   description: '',
   permissions: [] as Permission[],
@@ -367,11 +419,12 @@ const newRoleForm = reactive({
   description: '',
 });
 
-const isBusy = computed(() => isLoading.value || isSavingUser.value || isCreatingUser.value || isDeletingUser.value || isSavingRole.value || isDeletingRole.value);
+const isBusy = computed(() => isLoading.value || isSavingUser.value || isCreatingUser.value || isDeletingUser.value || isResettingPassword.value || isSavingRole.value || isDeletingRole.value);
 const loadingLabel = computed(() => {
   if (isSavingUser.value) return 'Kullanıcı güncelleniyor...';
   if (isCreatingUser.value) return 'Kullanıcı oluşturuluyor...';
   if (isDeletingUser.value) return 'Kullanıcı siliniyor...';
+  if (isResettingPassword.value) return 'Sifre guncelleniyor...';
   if (isSavingRole.value) return 'Rol izinleri kaydediliyor...';
   if (isDeletingRole.value) return 'Rol siliniyor...';
   return 'Admin verileri yükleniyor...';
@@ -476,6 +529,18 @@ function resetCreateUserForm(): void {
   createUserForm.roles = ['Viewer'];
 }
 
+function openPasswordResetModal(user: AdminUser): void {
+  passwordResetUser.value = user;
+  passwordResetForm.password = '';
+  errorMessage.value = '';
+}
+
+function closePasswordResetModal(): void {
+  if (isResettingPassword.value) return;
+  passwordResetUser.value = null;
+  passwordResetForm.password = '';
+}
+
 function selectRole(role: AdminRole): void {
   selectedRole.value = role;
   roleForm.description = role.description;
@@ -517,6 +582,25 @@ async function createUser(): Promise<void> {
     handleRequestError(error, 'Kullanıcı oluşturulamadı.');
   } finally {
     isCreatingUser.value = false;
+  }
+}
+
+async function resetUserPassword(): Promise<void> {
+  if (!passwordResetUser.value) return;
+
+  isResettingPassword.value = true;
+  errorMessage.value = '';
+  try {
+    await apiClient.put(`${apiEndpoints.admin}/users/${passwordResetUser.value.id}/password`, {
+      password: passwordResetForm.password,
+    });
+    showSuccess('Sifre guncellendi', `${passwordResetUser.value.username} icin yeni sifre kaydedildi.`);
+    passwordResetUser.value = null;
+    passwordResetForm.password = '';
+  } catch (error: any) {
+    handleRequestError(error, 'Sifre guncellenemedi.');
+  } finally {
+    isResettingPassword.value = false;
   }
 }
 
@@ -713,6 +797,7 @@ function formatDate(value: string): string {
 .role-option strong { display:block; font-size:0.8rem; color:var(--app-text) }
 .role-option small { display:block; margin-top:0.15rem; color:var(--app-text-muted); font-size:0.72rem; line-height:1.35 }
 .form-actions { grid-column:1/-1; display:flex; justify-content:flex-end; gap:0.5rem }
+.form-hint { grid-column:1/-1; margin:0; border:1px solid var(--app-border); border-radius:7px; background:var(--app-surface-alt); padding:0.6rem 0.7rem; color:var(--app-text-muted); font-size:0.76rem; line-height:1.4 }
 .role-manager { display:grid; grid-template-columns:minmax(12rem,16rem) 1fr; gap:0.85rem }
 .role-list { display:flex; flex-direction:column; gap:0.35rem }
 .role-list-item { text-align:left; border:1px solid var(--app-border); border-radius:8px; background:var(--app-surface); padding:0.65rem; cursor:pointer }
@@ -731,6 +816,7 @@ function formatDate(value: string): string {
 .modal-backdrop { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:1rem; background:rgba(15,23,42,0.36); backdrop-filter:blur(3px) }
 .user-modal { width:min(100%,42rem); max-height:calc(100vh - 2rem); overflow:auto; border:1px solid var(--app-border); border-radius:8px; background:var(--app-surface); box-shadow:0 24px 70px rgba(15,23,42,0.22); padding:0.95rem }
 .user-modal .admin-form { grid-template-columns:repeat(2,minmax(0,1fr)) }
+.password-modal { width:min(100%,34rem) }
 
 
 @media (max-width: 1200px) {

@@ -69,6 +69,12 @@ export const appRoutes: RouteRecordRaw[] = [
     meta: { title: 'Panel Access', layout: 'public' },
   },
   {
+    path: '/p/:panelCode/:categoryKey',
+    name: routeNames.publicPanelCategory,
+    component: () => import('@/pages/public/PublicPanelPage.vue'),
+    meta: { title: 'Panel Documents', layout: 'public' },
+  },
+  {
     path: '/design/colors',
     name: routeNames.designColors,
     component: () => import('@/pages/design/ColorsPage.vue'),

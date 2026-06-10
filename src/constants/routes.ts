@@ -9,5 +9,6 @@ export const routeNames = {
   panelDetail: 'panel-detail',
   admin: 'admin',
   publicPanel: 'public-panel',
+  publicPanelCategory: 'public-panel-category',
   designColors: 'design-colors',
 };

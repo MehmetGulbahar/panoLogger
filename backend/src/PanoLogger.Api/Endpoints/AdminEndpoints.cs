@@ -394,6 +394,25 @@ public static class AdminEndpoints
         })
         .WithName("UpdateAdminUser");
 
+        group.MapPut("/users/{userId:guid}/password", async (
+            Guid userId,
+            ResetAdminUserPasswordRequest request,
+            PanoLoggerDbContext dbContext,
+            IPasswordHasher<User> passwordHasher,
+            CancellationToken cancellationToken) =>
+        {
+            var password = NormalizePassword(request.Password);
+            var user = await dbContext.Users
+                .FirstOrDefaultAsync(item => item.Id == userId, cancellationToken)
+                ?? throw new NotFoundException("User was not found.");
+
+            user.SetPasswordHash(passwordHasher.HashPassword(user, password));
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            return Results.NoContent();
+        })
+        .WithName("ResetAdminUserPassword");
+
         group.MapDelete("/users/{userId:guid}", async (
             Guid userId,
             ClaimsPrincipal principal,
@@ -615,6 +634,8 @@ public sealed record UpdateAdminUserRequest(
     Guid? CompanyId,
     bool IsActive,
     string[] Roles);
+
+public sealed record ResetAdminUserPasswordRequest(string Password);
 
 public sealed record CreateAdminRoleRequest(
     string Name,

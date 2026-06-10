@@ -40,8 +40,18 @@
           </div>
         </section>
 
-        <section class="document-list" aria-label="Panel dosyalari">
-          <article v-for="card in documentCards" :key="card.key" class="document-card">
+        <RouterLink v-if="selectedCategory" class="category-back-link" :to="{ name: routeNames.publicPanel, params: { panelCode: publicPanel.panelCode } }">
+          <i class="pi pi-arrow-left" aria-hidden="true"></i>
+          Kategorilere don
+        </RouterLink>
+
+        <section v-if="!selectedCategory" class="document-list" aria-label="Panel dosya kategorileri">
+          <RouterLink
+            v-for="card in documentCards"
+            :key="card.key"
+            class="document-card document-card--link"
+            :to="{ name: routeNames.publicPanelCategory, params: { panelCode: publicPanel.panelCode, categoryKey: card.key } }"
+          >
             <div class="document-card__icon">
               <i :class="card.icon" aria-hidden="true"></i>
             </div>
@@ -55,8 +65,31 @@
                 <span class="document-card__count">{{ card.count }} dosya</span>
               </div>
 
-              <div v-if="card.files.length > 0" class="public-file-list">
-                <div v-for="file in card.files" :key="file.id" class="public-file-row">
+              <div class="document-card__cta">
+                <span>{{ card.count > 0 ? 'Dosyalari gor' : 'Kategoriye git' }}</span>
+                <i class="pi pi-arrow-right" aria-hidden="true"></i>
+              </div>
+            </div>
+          </RouterLink>
+        </section>
+
+        <section v-else class="document-list" aria-label="Kategori dosyalari">
+          <article class="document-card document-card--detail">
+            <div class="document-card__icon">
+              <i :class="selectedCategory.icon" aria-hidden="true"></i>
+            </div>
+
+            <div class="document-card__content">
+              <div class="document-card__head">
+                <div>
+                  <h2>{{ selectedCategory.title }}</h2>
+                  <p>{{ selectedCategory.description }}</p>
+                </div>
+                <span class="document-card__count">{{ selectedCategoryFiles.length }} dosya</span>
+              </div>
+
+              <div v-if="selectedCategoryFiles.length > 0" class="public-file-list">
+                <div v-for="file in selectedCategoryFiles" :key="file.id" class="public-file-row">
                   <div class="public-file-row__copy">
                     <strong>{{ file.fileName }}</strong>
                     <span>{{ formatFileSize(file.sizeBytes) }}</span>
@@ -124,6 +157,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { apiClient } from '@/api/client';
 import { apiEndpoints } from '@/api/endpoints';
+import { routeNames } from '@/constants/routes';
 import { defaultPanelFileCategories, getPanelFileCategoryDefinition, type PanelFileCategoryDefinition } from '@/constants/file-categories';
 import type { PublicPanelFileResponse, PublicPanelResponse } from '@/types/public-panel';
 
@@ -144,6 +178,7 @@ const errorMessage = ref('');
 const previewFile = ref<PublicPanelFileResponse | null>(null);
 
 const panelCode = computed(() => String(route.params.panelCode ?? '').trim());
+const selectedCategoryKey = computed(() => String(route.params.categoryKey ?? '').trim());
 const panelTitle = computed(() => publicPanel.value?.panelName ?? 'Panel bilgisi');
 const panelSubtitle = computed(() => {
   if (!publicPanel.value) {
@@ -154,6 +189,19 @@ const panelSubtitle = computed(() => {
 });
 
 const previewUrl = computed(() => (previewFile.value ? resolveApiUrl(previewFile.value.viewUrl) : ''));
+
+const selectedCategory = computed(() => {
+  if (!selectedCategoryKey.value) {
+    return null;
+  }
+
+  return documentCards.value.find((card) => card.key === selectedCategoryKey.value)
+    ?? getPanelFileCategoryDefinition(selectedCategoryKey.value);
+});
+
+const selectedCategoryFiles = computed(() => (
+  selectedCategory.value ? filesByCategory(selectedCategory.value.key) : []
+));
 
 const documentCards = computed<PublicDocumentCard[]>(() => (
   getVisibleCategories().map((category) => {
@@ -412,6 +460,22 @@ function formatFileSize(sizeBytes: number) {
   padding: 0.85rem;
 }
 
+.document-card--link {
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.document-card--link:hover {
+  border-color: rgb(37 99 235 / 0.35);
+  box-shadow: 0 12px 30px rgb(15 23 42 / 0.1);
+  transform: translateY(-1px);
+}
+
+.document-card--detail {
+  min-height: 12rem;
+}
+
 .document-card__icon {
   width: 2rem;
   height: 2rem;
@@ -457,6 +521,20 @@ function formatFileSize(sizeBytes: number) {
   margin: 0.75rem 0 0;
   color: var(--app-text-muted);
   font-size: 0.75rem;
+}
+
+.document-card__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.8rem;
+  color: var(--app-primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.document-card__cta .pi {
+  font-size: 0.68rem;
 }
 
 .document-card__count {
@@ -560,6 +638,26 @@ function formatFileSize(sizeBytes: number) {
 
 .public-footer strong {
   color: var(--app-text);
+}
+
+.category-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.75rem;
+  color: var(--app-primary);
+  font-size: 0.78rem;
+  line-height: 1.2;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.category-back-link:hover {
+  text-decoration: underline;
+}
+
+.category-back-link .pi {
+  font-size: 0.75rem;
 }
 
 .preview-backdrop {

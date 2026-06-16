@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using PanoLogger.Api.Authorization;
 using PanoLogger.Application.Common.Exceptions;
+using PanoLogger.Application.Common.Interfaces;
 using PanoLogger.Domain.Roles;
 using PanoLogger.Domain.Users;
 using PanoLogger.Infrastructure.Persistence;
@@ -84,10 +85,76 @@ public static class AdminEndpoints
         group.MapGet("/permissions", () => Results.Ok(AppPermissions.All.Order(StringComparer.OrdinalIgnoreCase).ToArray()))
             .WithName("GetAdminAvailablePermissions");
 
+        group.MapGet("/audit-logs", async (PanoLoggerDbContext dbContext, CancellationToken cancellationToken) =>
+        {
+            var logs = await (
+                from auditLog in dbContext.AuditLogs.AsNoTracking()
+                join user in dbContext.Users.AsNoTracking() on auditLog.UserId equals user.Id into userJoin
+                from user in userJoin.DefaultIfEmpty()
+                join directPanel in dbContext.Panels.AsNoTracking() on auditLog.EntityId equals directPanel.Id into directPanelJoin
+                from directPanel in directPanelJoin.DefaultIfEmpty()
+                join panelFile in dbContext.PanelFiles.AsNoTracking() on auditLog.EntityId equals panelFile.Id into panelFileJoin
+                from panelFile in panelFileJoin.DefaultIfEmpty()
+                join filePanel in dbContext.Panels.AsNoTracking() on panelFile.PanelId equals filePanel.Id into filePanelJoin
+                from filePanel in filePanelJoin.DefaultIfEmpty()
+                orderby auditLog.OccurredAtUtc descending
+                select new AdminAuditLogResponse(
+                    auditLog.Id,
+                    auditLog.Action,
+                    auditLog.EntityName,
+                    auditLog.EntityId,
+                    auditLog.UserId,
+                    user == null ? null : user.Username,
+                    string.Equals(auditLog.EntityName, "Panel", StringComparison.OrdinalIgnoreCase)
+                        ? (directPanel == null ? null : directPanel.Name)
+                        : string.Equals(auditLog.EntityName, "PanelFile", StringComparison.OrdinalIgnoreCase)
+                            ? (filePanel == null ? null : filePanel.Name)
+                            : null,
+                    auditLog.OccurredAtUtc,
+                    auditLog.Metadata))
+                .Take(100)
+                .ToArrayAsync(cancellationToken);
+
+            return Results.Ok(logs);
+        })
+        .WithName("GetAdminAuditLogs");
+
+        group.MapGet("/maintenance-reports", async (PanoLoggerDbContext dbContext, CancellationToken cancellationToken) =>
+        {
+            var reports = await (
+                from report in dbContext.MaintenanceReports.AsNoTracking()
+                join panel in dbContext.Panels.AsNoTracking() on report.PanelId equals panel.Id
+                join facility in dbContext.Facilities.AsNoTracking() on panel.FacilityId equals facility.Id
+                join company in dbContext.Companies.AsNoTracking() on facility.CompanyId equals company.Id
+                join user in dbContext.Users.AsNoTracking() on report.CreatedByUserId equals user.Id into userJoin
+                from user in userJoin.DefaultIfEmpty()
+                orderby report.ReportDateUtc descending
+                select new AdminMaintenanceReportResponse(
+                    report.Id,
+                    report.PanelId,
+                    panel.Name,
+                    panel.Code,
+                    facility.Name,
+                    company.ProjectName,
+                    report.Title,
+                    report.ReportDateUtc,
+                    report.Notes,
+                    user == null ? null : user.Username,
+                    report.CreatedAtUtc))
+                .Take(100)
+                .ToArrayAsync(cancellationToken);
+           
+            
+            return Results.Ok(reports);
+        })
+        .WithName("GetAdminMaintenanceReports");
+
         group.MapPost("/users", async (
             CreateAdminUserRequest request,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             IPasswordHasher<User> passwordHasher,
+            IAuditLogWriter auditLogWriter,
             CancellationToken cancellationToken) =>
         {
             var username = NormalizeUsername(request.Username);
@@ -135,6 +202,12 @@ public static class AdminEndpoints
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);
+            await auditLogWriter.WriteAsync(
+                "users.create",
+                nameof(User),
+                user.Id.ToString(),
+                GetCurrentUserId(principal),
+                cancellationToken);
 
             return Results.Created($"/api/admin/users/{user.Id}", new AdminUserResponse(
                 user.Id,
@@ -152,7 +225,9 @@ public static class AdminEndpoints
 
         group.MapPost("/roles", async (
             CreateAdminRoleRequest request,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
+            IAuditLogWriter auditLogWriter,
             CancellationToken cancellationToken) =>
         {
             var name = NormalizeRoleName(request.Name);
@@ -174,6 +249,12 @@ public static class AdminEndpoints
             dbContext.Roles.Add(role);
             AddRolePermissions(dbContext, role.Id, permissions);
             await dbContext.SaveChangesAsync(cancellationToken);
+            await auditLogWriter.WriteAsync(
+                "roles.create",
+                nameof(Role),
+                role.Id.ToString(),
+                GetCurrentUserId(principal),
+                cancellationToken);
 
             return Results.Created($"/api/admin/roles/{role.Id}", new AdminRoleResponse(
                 role.Id,
@@ -187,7 +268,9 @@ public static class AdminEndpoints
         group.MapPut("/roles/{roleId:guid}", async (
             Guid roleId,
             UpdateAdminRoleRequest request,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
+            IAuditLogWriter auditLogWriter,
             CancellationToken cancellationToken) =>
         {
             var role = await dbContext.Roles
@@ -220,6 +303,12 @@ public static class AdminEndpoints
             AddRolePermissions(dbContext, roleId, permissions);
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+            await auditLogWriter.WriteAsync(
+                "roles.update",
+                nameof(Role),
+                roleId.ToString(),
+                GetCurrentUserId(principal),
+                cancellationToken);
 
             return Results.NoContent();
         })
@@ -227,7 +316,9 @@ public static class AdminEndpoints
 
         group.MapDelete("/roles/{roleId:guid}", async (
             Guid roleId,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
+            IAuditLogWriter auditLogWriter,
             CancellationToken cancellationToken) =>
         {
             var role = await dbContext.Roles
@@ -253,6 +344,12 @@ public static class AdminEndpoints
             await dbContext.Roles
                 .Where(item => item.Id == roleId)
                 .ExecuteDeleteAsync(cancellationToken);
+            await auditLogWriter.WriteAsync(
+                "roles.delete",
+                nameof(Role),
+                roleId.ToString(),
+                GetCurrentUserId(principal),
+                cancellationToken);
 
             return Results.NoContent();
         })
@@ -310,6 +407,7 @@ public static class AdminEndpoints
             UpdateAdminUserRequest request,
             ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
+            IAuditLogWriter auditLogWriter,
             CancellationToken cancellationToken) =>
         {
             var currentUserId = Guid.Parse(principal.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -389,6 +487,12 @@ public static class AdminEndpoints
 
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+            await auditLogWriter.WriteAsync(
+                "users.update",
+                nameof(User),
+                userId.ToString(),
+                GetCurrentUserId(principal),
+                cancellationToken);
 
             return Results.NoContent();
         })
@@ -397,8 +501,10 @@ public static class AdminEndpoints
         group.MapPut("/users/{userId:guid}/password", async (
             Guid userId,
             ResetAdminUserPasswordRequest request,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             IPasswordHasher<User> passwordHasher,
+            IAuditLogWriter auditLogWriter,
             CancellationToken cancellationToken) =>
         {
             var password = NormalizePassword(request.Password);
@@ -408,6 +514,12 @@ public static class AdminEndpoints
 
             user.SetPasswordHash(passwordHasher.HashPassword(user, password));
             await dbContext.SaveChangesAsync(cancellationToken);
+            await auditLogWriter.WriteAsync(
+                "users.password.reset",
+                nameof(User),
+                userId.ToString(),
+                GetCurrentUserId(principal),
+                cancellationToken);
 
             return Results.NoContent();
         })
@@ -417,6 +529,7 @@ public static class AdminEndpoints
             Guid userId,
             ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
+            IAuditLogWriter auditLogWriter,
             CancellationToken cancellationToken) =>
         {
             var currentUserId = Guid.Parse(principal.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -454,6 +567,12 @@ public static class AdminEndpoints
             await dbContext.Users
                 .Where(item => item.Id == user.Id)
                 .ExecuteDeleteAsync(cancellationToken);
+            await auditLogWriter.WriteAsync(
+                "users.delete",
+                nameof(User),
+                user.Id.ToString(),
+                GetCurrentUserId(principal),
+                cancellationToken);
 
             return Results.NoContent();
         })
@@ -585,6 +704,13 @@ public static class AdminEndpoints
             });
         }
     }
+
+    private static Guid? GetCurrentUserId(ClaimsPrincipal principal)
+    {
+        return Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
+            ? userId
+            : null;
+    }
 }
 
 public sealed record AdminOverviewResponse(
@@ -620,6 +746,30 @@ public sealed record AdminUserResponse(
     string? CompanyCode,
     bool IsActive,
     string[] Roles,
+    DateTimeOffset CreatedAtUtc);
+
+public sealed record AdminAuditLogResponse(
+    Guid Id,
+    string Action,
+    string EntityName,
+    Guid? EntityId,
+    Guid? UserId,
+    string? Username,
+    string? PanelName,
+    DateTimeOffset OccurredAtUtc,
+    string Metadata);
+
+public sealed record AdminMaintenanceReportResponse(
+    Guid Id,
+    Guid PanelId,
+    string PanelName,
+    string PanelCode,
+    string FacilityName,
+    string ProjectName,
+    string Title,
+    DateTimeOffset ReportDateUtc,
+    string Notes,
+    string? CreatedByUsername,
     DateTimeOffset CreatedAtUtc);
 
 public sealed record CreateAdminUserRequest(

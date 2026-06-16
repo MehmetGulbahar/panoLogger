@@ -5,9 +5,19 @@ namespace PanoLogger.Infrastructure.Auditing;
 
 public sealed class InMemoryAuditLogWriter(ILogger<InMemoryAuditLogWriter> logger) : IAuditLogWriter
 {
-    public Task WriteAsync(string action, string entityName, string entityId, CancellationToken cancellationToken = default)
+    public Task WriteAsync(
+        string action,
+        string entityName,
+        string entityId,
+        Guid? userId = null,
+        CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Audit action {Action} for {EntityName}/{EntityId}", action, entityName, entityId);
+        logger.LogInformation(
+            "Audit action {Action} for {EntityName}/{EntityId} by {UserId}",
+            action,
+            entityName,
+            entityId,
+            userId);
         return Task.CompletedTask;
     }
 }

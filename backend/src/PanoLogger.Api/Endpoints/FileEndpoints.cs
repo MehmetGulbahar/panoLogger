@@ -44,8 +44,10 @@ public static class FileEndpoints
             Guid panelId,
             [FromForm] IFormFile file,
             [FromForm] string? category,
+            ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             IFileStorageService fileStorageService,
+            IAuditLogWriter auditLogWriter,
             CancellationToken cancellationToken) =>
         {
             if (!await dbContext.Panels.AnyAsync(panel => panel.Id == panelId, cancellationToken))
@@ -82,6 +84,13 @@ public static class FileEndpoints
                 await fileStorageService.DeleteAsync(storedFile.StoragePath, cancellationToken);
                 throw;
             }
+
+            await auditLogWriter.WriteAsync(
+                "files.upload",
+                nameof(PanelFile),
+                panelFile.Id.ToString(),
+                GetCurrentUserId(principal),
+                cancellationToken);
 
             return Results.Created(
                 $"/api/files/{panelFile.Id}",
@@ -121,6 +130,7 @@ public static class FileEndpoints
             ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             IFileStorageService fileStorageService,
+            IAuditLogWriter auditLogWriter,
             CancellationToken cancellationToken) =>
         {
             var file = await GetFileForAccessAsync(fileId, principal, dbContext, cancellationToken);
@@ -138,6 +148,7 @@ public static class FileEndpoints
             ClaimsPrincipal principal,
             PanoLoggerDbContext dbContext,
             IFileStorageService fileStorageService,
+            IAuditLogWriter auditLogWriter,
             CancellationToken cancellationToken) =>
         {
             var file = await GetFileForAccessAsync(fileId, principal, dbContext, cancellationToken);
@@ -146,6 +157,12 @@ public static class FileEndpoints
 
             dbContext.PanelFiles.Remove(file.PanelFile);
             await dbContext.SaveChangesAsync(cancellationToken);
+            await auditLogWriter.WriteAsync(
+                "files.delete",
+                nameof(PanelFile),
+                fileId.ToString(),
+                GetCurrentUserId(principal),
+                cancellationToken);
 
             return Results.NoContent();
         })
@@ -178,6 +195,13 @@ public static class FileEndpoints
         tenant.EnsureCompany(file.CompanyId);
 
         return file;
+    }
+
+    private static Guid? GetCurrentUserId(ClaimsPrincipal principal)
+    {
+        return Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
+            ? userId
+            : null;
     }
 
     private static async Task<string> ParseCategoryAsync(

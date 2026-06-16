@@ -45,8 +45,8 @@ onMounted(() => {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0xf5f7fb);
 
-  camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
-  camera.position.set(0, 0.15, 11.2);
+  camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+  camera.position.set(0.05, 0.2, 12.8);
 
   renderer = new THREE.WebGLRenderer({
     canvas: canvasRef.value,
@@ -79,8 +79,8 @@ onMounted(() => {
   scene.add(floor);
 
   cabinetGroup = buildCabinet();
-  cabinetGroup.scale.setScalar(0.78);
-  cabinetGroup.position.set(-0.12, 0.18, 0);
+  cabinetGroup.scale.setScalar(0.68);
+  cabinetGroup.position.set(-0.06, 0.28, 0);
   scene.add(cabinetGroup);
 
   resizeObserver = new ResizeObserver(resizeScene);
@@ -241,8 +241,8 @@ function handlePointerMove(event: PointerEvent): void {
 }
 
 function resizeScene(): void {
-  if (!hostRef.value || !renderer || !camera) return;
-  const { width, height } = hostRef.value.getBoundingClientRect();
+  if (!canvasRef.value || !renderer || !camera) return;
+  const { width, height } = canvasRef.value.getBoundingClientRect();
   renderer.setSize(width, height, false);
   camera.aspect = width / Math.max(height, 1);
   camera.updateProjectionMatrix();
@@ -265,7 +265,7 @@ function animate(): void {
 <style scoped>
 .panel-scene {
   position: relative;
-  min-height: 28rem;
+  min-height: 26rem;
   height: 100%;
   overflow: hidden;
   border-radius: 8px;
@@ -277,7 +277,8 @@ function animate(): void {
 
 .panel-scene canvas {
   width: 100%;
-  height: 100%;
+  height: calc(100% - 5.1rem);
+  min-height: 20rem;
   display: block;
 }
 
@@ -311,7 +312,12 @@ function animate(): void {
 
 @media (max-width: 760px) {
   .panel-scene {
-    min-height: 18rem;
+    min-height: 18.5rem;
+  }
+
+  .panel-scene canvas {
+    min-height: 13.5rem;
+    height: calc(100% - 4.65rem);
   }
 
   .scene-caption {

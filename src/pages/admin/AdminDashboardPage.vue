@@ -29,6 +29,52 @@
       </div>
     </div>
 
+    <div class="admin-data-grid">
+      <section class="admin-section">
+        <div class="section-head">
+          <div>
+            <h2>Bakim Raporlari</h2>
+            <p>Veritabanındaki son bakım raporu kayıtları.</p>
+          </div>
+        </div>
+
+        <div class="compact-list">
+          <div v-if="maintenanceReports.length === 0" class="empty-panel">Bakım raporu kaydı bulunamadı.</div>
+          <template v-else>
+            <article v-for="report in maintenanceReports.slice(0, 6)" :key="report.id" class="compact-list-item">
+              <div>
+                <strong>{{ report.title }}</strong>
+                <span>{{ report.projectName }} / {{ report.facilityName }} / {{ report.panelCode }}</span>
+              </div>
+              <time>{{ formatDate(report.reportDateUtc) }}</time>
+            </article>
+          </template>
+        </div>
+      </section>
+
+      <section class="admin-section">
+        <div class="section-head">
+          <div>
+            <h2>Audit Logs</h2>
+            <p>Sistemde kaydedilen son denetim hareketleri.</p>
+          </div>
+        </div>
+
+        <div class="compact-list">
+          <div v-if="auditLogs.length === 0" class="empty-panel">Audit log kaydi bulunamadi.</div>
+          <template v-else>
+            <article v-for="log in auditLogs.slice(0, 6)" :key="log.id" class="compact-list-item">
+              <div>
+                <strong>{{ log.action }} => {{ log.panelName }}</strong>
+                <span>{{ log.entityName }}{{ log.username ? ` / ${log.username}` : log.userId ? ` / ${log.userId}` : '' }}</span>
+              </div>
+              <time>{{ formatDate(log.occurredAtUtc) }}</time>
+            </article>
+          </template>
+        </div>
+      </section>
+    </div>
+
     <section class="admin-section">
       <div class="section-head">
         <div>
@@ -356,7 +402,9 @@ import { apiClient } from '@/api/client';
 import { apiEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores';
 import type {
+  AdminAuditLog,
   AdminCompanyOption,
+  AdminMaintenanceReport,
   AdminOverview,
   AdminRole,
   AdminUser,
@@ -375,6 +423,8 @@ const users = ref<AdminUser[]>([]);
 const companies = ref<AdminCompanyOption[]>([]);
 const roles = ref<AdminRole[]>([]);
 const availablePermissions = ref<Permission[]>([]);
+const auditLogs = ref<AdminAuditLog[]>([]);
+const maintenanceReports = ref<AdminMaintenanceReport[]>([]);
 const selectedUser = ref<AdminUser | null>(null);
 const selectedRole = ref<AdminRole | null>(null);
 const searchTerm = ref('');
@@ -461,16 +511,27 @@ onMounted(() => {
   void loadAdminData();
 });
 
+
 async function loadAdminData(): Promise<void> {
   isLoading.value = true;
   errorMessage.value = '';
   try {
-    const [overviewResponse, usersResponse, companiesResponse, rolesResponse, permissionsResponse] = await Promise.all([
+    const [
+      overviewResponse,
+      usersResponse,
+      companiesResponse,
+      rolesResponse,
+      permissionsResponse,
+      auditLogsResponse,
+      maintenanceReportsResponse,
+    ] = await Promise.all([
       apiClient.get<AdminOverview>(`${apiEndpoints.admin}/overview`),
       apiClient.get<AdminUser[]>(`${apiEndpoints.admin}/users`),
       apiClient.get<AdminCompanyOption[]>(`${apiEndpoints.admin}/companies/options`),
       apiClient.get<AdminRole[]>(`${apiEndpoints.admin}/roles`),
       apiClient.get<Permission[]>(`${apiEndpoints.admin}/permissions`),
+      apiClient.get<AdminAuditLog[]>(`${apiEndpoints.admin}/audit-logs`),
+      apiClient.get<AdminMaintenanceReport[]>(`${apiEndpoints.admin}/maintenance-reports`),
     ]);
 
     overview.value = overviewResponse.data;
@@ -478,6 +539,8 @@ async function loadAdminData(): Promise<void> {
     companies.value = companiesResponse.data;
     roles.value = rolesResponse.data;
     availablePermissions.value = permissionsResponse.data;
+    auditLogs.value = auditLogsResponse.data;
+    maintenanceReports.value = maintenanceReportsResponse.data;
 
     if (selectedUser.value) {
       const refreshedUser = users.value.find((user) => user.id === selectedUser.value?.id);
@@ -748,6 +811,7 @@ function formatDate(value: string): string {
 .metric-icon .pi { font-size:0.9rem }
 .metric-card strong { display:block; font-size:1.15rem; line-height:1.1; color:var(--app-text) }
 .metric-card span:last-child { display:block; margin-top:0.15rem; font-size:0.75rem; color:var(--app-text-muted) }
+.admin-data-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.85rem }
 .admin-section { border:1px solid var(--app-border); border-radius:8px; background:var(--app-surface); padding:0.95rem }
 .section-head { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:0.8rem }
 .section-head.compact { margin-bottom:0.6rem }
@@ -813,6 +877,29 @@ function formatDate(value: string): string {
 .permission-option { display:flex; align-items:center; gap:0.45rem; min-height:2.1rem; border:1px solid var(--app-border); border-radius:7px; padding:0.45rem 0.55rem; color:var(--app-text); font-size:0.75rem }
 .permission-option:has(input:checked) { border-color:rgba(37,99,235,0.45); background:#eff6ff; color:var(--app-primary); font-weight:700 }
 .empty-panel { display:grid; place-items:center; min-height:10rem; border:1px dashed var(--app-border); border-radius:8px; color:var(--app-text-muted); font-size:0.8rem }
+.compact-list {
+  display:grid;
+  gap:0.45rem;
+  max-height:22rem;
+  overflow:auto;
+  padding-right:0.2rem;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(148,163,184,0.9) transparent;
+}
+.compact-list .empty-panel { min-height:7rem }
+.compact-list-item { display:flex; align-items:center; justify-content:space-between; gap:0.75rem; min-height:3.2rem; border:1px solid var(--app-border); border-radius:8px; padding:0.6rem 0.7rem; background:var(--app-surface) }
+.compact-list-item strong { display:block; color:var(--app-text); font-size:0.8rem; line-height:1.25 }
+.compact-list-item span { display:block; margin-top:0.15rem; color:var(--app-text-muted); font-size:0.72rem; line-height:1.25 }
+.compact-list-item time { flex:0 0 auto; color:var(--app-text-muted); font-size:0.72rem; white-space:nowrap }
+.compact-list::-webkit-scrollbar { width:8px }
+.compact-list::-webkit-scrollbar-track { background:transparent }
+.compact-list::-webkit-scrollbar-thumb {
+  background:rgba(148,163,184,0.85);
+  border-radius:999px;
+  border:2px solid transparent;
+  background-clip:padding-box;
+}
+.compact-list::-webkit-scrollbar-thumb:hover { background:rgba(100,116,139,0.95) }
 .modal-backdrop { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:1rem; background:rgba(15,23,42,0.36); backdrop-filter:blur(3px) }
 .user-modal { width:min(100%,42rem); max-height:calc(100vh - 2rem); overflow:auto; border:1px solid var(--app-border); border-radius:8px; background:var(--app-surface); box-shadow:0 24px 70px rgba(15,23,42,0.22); padding:0.95rem }
 .user-modal .admin-form { grid-template-columns:repeat(2,minmax(0,1fr)) }
@@ -832,6 +919,7 @@ function formatDate(value: string): string {
   .section-head,
   .table-tools { flex-direction:column; align-items:stretch }
   .metric-grid,
+  .admin-data-grid,
   .admin-form,
   .role-fieldset,
   .role-manager,

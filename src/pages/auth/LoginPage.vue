@@ -120,10 +120,10 @@ async function onSubmit(): Promise<void> {
 }
 
 .login-layout {
-  width: min(100%, 64rem);
-  min-height: min(37rem, calc(100vh - 4rem));
+  width: min(100%, 61rem);
+  min-height: min(35.5rem, calc(100vh - 4rem));
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(21rem, 24rem);
+  grid-template-columns: minmax(28rem, 35rem) minmax(21rem, 24rem);
   align-items: center;
   gap: clamp(1rem, 3vw, 2rem);
 }
@@ -133,7 +133,7 @@ async function onSubmit(): Promise<void> {
 }
 
 .login-visual {
-  min-height: min(31rem, calc(100vh - 5rem));
+  min-height: min(30rem, calc(100vh - 5rem));
 }
 
 .login-header {
@@ -308,7 +308,7 @@ async function onSubmit(): Promise<void> {
   }
 
   .login-visual {
-    min-height: 19rem;
+    min-height: 18.5rem;
     order: -1;
   }
 }
@@ -324,7 +324,7 @@ async function onSubmit(): Promise<void> {
   }
 
   .login-visual {
-    min-height: 17rem;
+    min-height: 17.5rem;
   }
 }
 </style>

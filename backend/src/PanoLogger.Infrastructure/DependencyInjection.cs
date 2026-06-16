@@ -26,7 +26,7 @@ public static class DependencyInjection
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.Configure<QrCodeOptions>(configuration.GetSection(QrCodeOptions.SectionName));
         services.Configure<SupabaseStorageOptions>(configuration.GetSection(SupabaseStorageOptions.SectionName));
-        services.AddSingleton<IAuditLogWriter, InMemoryAuditLogWriter>();
+        services.AddScoped<IAuditLogWriter, DbAuditLogWriter>();
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
         services.AddSingleton<IRefreshTokenService, RefreshTokenService>();
         services.AddSingleton<IQrCodeService, QrCodeService>();

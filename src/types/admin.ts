@@ -39,6 +39,33 @@ export interface AdminUser {
   createdAtUtc: string;
 }
 
+export interface AdminAuditLog {
+  id: string;
+  action: string;
+  entityName: string;
+  entityId?: string | null;
+  userId?: string | null;
+  username?: string | null;
+  panelName?: string | null;
+  occurredAtUtc: string;
+  metadata: string;
+
+}
+
+export interface AdminMaintenanceReport {
+  id: string;
+  panelId: string;
+  panelName: string;
+  panelCode: string;
+  facilityName: string;
+  projectName: string;
+  title: string;
+  reportDateUtc: string;
+  notes: string;
+  createdByUsername?: string | null;
+  createdAtUtc: string;
+}
+
 export interface CreateAdminUserRequest {
   username: string;
   displayName: string;

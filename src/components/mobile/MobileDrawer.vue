@@ -40,10 +40,10 @@ function close() { emit('update:modelValue', false); emit('close'); }
 <style scoped>
 .mobile-drawer { display:none }
 @media (max-width:960px) {
-  .mobile-drawer { display:block; position:fixed; inset:0; z-index:1250 }
-  .mobile-drawer { background: rgba(0,0,0,0.4); opacity:0; transition:opacity .18s }
-  .mobile-drawer.open { opacity:1 }
-  .mobile-drawer__sheet { position: absolute; left:0; right:0; bottom:0; background:var(--app-surface); border-top-left-radius:10px; border-top-right-radius:10px; max-height:80vh; overflow:auto; transform: translateY(20%); transition: transform .22s cubic-bezier(.2,.9,.2,1), opacity .18s }
+  .mobile-drawer { display:block; position:fixed; inset:0; z-index:1250; pointer-events:none; visibility:hidden }
+  .mobile-drawer { background: rgba(0,0,0,0.4); opacity:0; transition:opacity .18s, visibility .18s }
+  .mobile-drawer.open { opacity:1; pointer-events:auto; visibility:visible }
+  .mobile-drawer__sheet { position: absolute; left:0; right:0; bottom:0; background:var(--app-surface); border-top-left-radius:10px; border-top-right-radius:10px; max-height:80vh; overflow:auto; transform: translateY(100%); transition: transform .22s cubic-bezier(.2,.9,.2,1), opacity .18s }
   .mobile-drawer.open .mobile-drawer__sheet { transform: translateY(0); opacity:1 }
   .mobile-drawer__header { padding: 0.8rem 1rem; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--app-border); font-size:0.875rem; font-weight:700 }
   .mobile-drawer__body { padding: 1rem }

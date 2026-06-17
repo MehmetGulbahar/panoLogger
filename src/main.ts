@@ -18,6 +18,7 @@ import { createAppServices } from './app/app-services';
 import { registerGlobalComponents } from './app/register-global-components';
 import { applyTheme } from './app/theme';
 import { initAppDefaults } from './app/init-app-defaults';
+import { registerPwa } from './services/pwaService';
 
 import './assets/styles/main.css';
 
@@ -42,3 +43,9 @@ createAppServices(app);
 registerGlobalComponents(app);
 
 app.mount('#app');
+
+registerPwa({
+  onInstallAvailable: () => window.dispatchEvent(new CustomEvent('pwa-install-available')),
+  onInstallUnavailable: () => window.dispatchEvent(new CustomEvent('pwa-install-unavailable')),
+  onUpdateAvailable: () => window.dispatchEvent(new CustomEvent('pwa-update-available')),
+});

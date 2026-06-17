@@ -1,6 +1,8 @@
 <template>
   <Toast position="top-right" />
   <ConfirmPopup />
+  <InstallButton />
+  <UpdateNotification />
   <RouterView v-if="isPublicRoute" />
   <AppShell v-else>
     <RouterView />
@@ -12,6 +14,8 @@ import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import ConfirmPopup from 'primevue/confirmpopup';
 import Toast from 'primevue/toast';
+import InstallButton from './components/InstallButton.vue';
+import UpdateNotification from './components/UpdateNotification.vue';
 import AppShell from './layouts/AppShell.vue';
 
 const route = useRoute();

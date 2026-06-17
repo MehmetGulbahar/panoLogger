@@ -31,10 +31,7 @@
       </RouterLink>
     </section>
 
-    <section class="uploads-card card">
-      <h3>Yüklenen Dosyalar ({{ fileSummary.panelsWithFiles }}/{{ fileSummary.totalPanels }})</h3>
-      <p class="muted">{{ uploadSummaryText }}</p>
-    </section>
+    
   </div>
 </template>
 
@@ -56,13 +53,7 @@ const fileSummary = reactive<FileSummary>({ totalFiles: 0, panelsWithFiles: 0, t
 const projectCount = computed(() => hierarchyStore.companies.length);
 const facilityCount = computed(() => hierarchyStore.facilities.length);
 const panelCount = computed(() => hierarchyStore.panels.length);
-const uploadSummaryText = computed(() => {
-  if (fileSummary.totalFiles === 0) {
-    return 'Henüz dosya yüklenmedi. Pano detayına gidip dosya yükleyebilirsiniz.';
-  }
 
-  return `${fileSummary.totalFiles} dosya, ${fileSummary.panelsWithFiles} panoya yüklenmiştir.`;
-});
 
 onMounted(async () => {
   await hierarchyStore.load();
